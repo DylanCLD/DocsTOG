@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar profile={profile} settings={(settings as WorkspaceSettings | null) ?? null} />
       <div className="min-w-0">
         <Topbar />
-        <main className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-6">{children}</main>
+        <main className="w-full px-4 py-6 lg:px-8">{children}</main>
       </div>
     </div>
   );
