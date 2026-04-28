@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
 import Color from "@tiptap/extension-color";
 import DragHandle from "@tiptap/extension-drag-handle";
@@ -47,8 +47,13 @@ import {
 import { createClient } from "@/lib/supabase/browser";
 import { cn, emptyDoc } from "@/lib/utils";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
+import type { Profile } from "@/types";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type RealtimeTable = "pages" | "documents";
+type PresenceUser = Pick<Profile, "id" | "email" | "full_name" | "avatar_url"> & {
+  online_at: string;
+};
 
 const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
@@ -56,14 +61,22 @@ const buttonClass =
 export function RichEditor({
   value,
   onSave,
-  readOnly = false
+  readOnly = false,
+  collaboration
 }: {
   value: unknown;
   onSave: (content: JSONContent) => Promise<void>;
   readOnly?: boolean;
+  collaboration?: {
+    id: string;
+    table: RealtimeTable;
+    profile: Pick<Profile, "id" | "email" | "full_name" | "avatar_url">;
+  };
 }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [uploading, setUploading] = useState(false);
+  const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
+  const [remoteContent, setRemoteContent] = useState<JSONContent | null>(null);
 
   const initialContent = useMemo(() => {
     if (value && typeof value === "object") {
@@ -82,6 +95,7 @@ export function RichEditor({
       setSaveStatus("saving");
       try {
         await onSave(content);
+        setRemoteContent(null);
         setSaveStatus("saved");
       } catch {
         setSaveStatus("error");
@@ -150,6 +164,61 @@ export function RichEditor({
       debouncedSave(currentEditor.getJSON());
     }
   });
+
+  useEffect(() => {
+    if (!collaboration || !editor) {
+      return;
+    }
+
+    const supabase = createClient();
+    const channel = supabase.channel(`editor:${collaboration.table}:${collaboration.id}`, {
+      config: {
+        presence: {
+          key: collaboration.profile.id
+        }
+      }
+    });
+
+    const refreshPresence = () => {
+      const state = channel.presenceState<PresenceUser>();
+      const users = Object.values(state)
+        .flat()
+        .filter((user) => user.id !== collaboration.profile.id);
+      setPresenceUsers(users);
+    };
+
+    channel
+      .on("presence", { event: "sync" }, refreshPresence)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: collaboration.table,
+          filter: `id=eq.${collaboration.id}`
+        },
+        (payload) => {
+          const nextContent = payload.new?.content as JSONContent | undefined;
+          const updatedBy = payload.new?.updated_by as string | null | undefined;
+
+          if (nextContent && updatedBy !== collaboration.profile.id) {
+            setRemoteContent(nextContent);
+          }
+        }
+      )
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({
+            ...collaboration.profile,
+            online_at: new Date().toISOString()
+          });
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [collaboration, editor]);
 
   const runSave = async () => {
     if (!editor) {
@@ -222,6 +291,33 @@ export function RichEditor({
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+      {(presenceUsers.length > 0 || remoteContent) && (
+        <div className="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
+            {presenceUsers.length > 0 && (
+              <span>
+                En direct:{" "}
+                <strong className="text-[var(--text)]">
+                  {presenceUsers.map((user) => user.full_name ?? user.email).join(", ")}
+                </strong>
+              </span>
+            )}
+            {remoteContent && <span className="text-amber-200">Une version plus recente vient d&apos;etre sauvegardee.</span>}
+          </div>
+          {remoteContent && (
+            <button
+              type="button"
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]"
+              onClick={() => {
+                editor.commands.setContent(remoteContent, { emitUpdate: false });
+                setRemoteContent(null);
+              }}
+            >
+              Charger la version recente
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-1 border-b border-[var(--border)] bg-[var(--surface-elevated)] p-2">
         <ToolbarButton label="Paragraphe" disabled={toolbarDisabled} onClick={() => editor.chain().focus().setParagraph().run()}>
           <Pilcrow className="h-4 w-4" />

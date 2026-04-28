@@ -31,7 +31,16 @@ export function PageEditorClient({ page, profile }: { page: PageRecord; profile:
         </div>
       </form>
 
-      <RichEditor value={page.content} readOnly={readOnly} onSave={(content) => updatePageContent(page.id, content)} />
+      <RichEditor
+        value={page.content}
+        readOnly={readOnly}
+        onSave={(content) => updatePageContent(page.id, content)}
+        collaboration={{
+          id: page.id,
+          table: "pages",
+          profile
+        }}
+      />
     </div>
   );
 }

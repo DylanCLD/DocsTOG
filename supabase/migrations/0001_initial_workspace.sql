@@ -404,3 +404,20 @@ create policy "project_media_authenticated_update" on storage.objects for update
 
 drop policy if exists "project_media_admin_delete" on storage.objects;
 create policy "project_media_admin_delete" on storage.objects for delete to authenticated using (bucket_id = 'project-media' and public.is_admin());
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'pages'
+  ) then
+    alter publication supabase_realtime add table public.pages;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'documents'
+  ) then
+    alter publication supabase_realtime add table public.documents;
+  end if;
+end $$;

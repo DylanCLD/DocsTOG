@@ -68,7 +68,16 @@ export function DocumentEditorClient({
         </div>
       </form>
 
-      <RichEditor value={document.content} readOnly={readOnly} onSave={(content) => updateDocumentContent(document.id, content)} />
+      <RichEditor
+        value={document.content}
+        readOnly={readOnly}
+        onSave={(content) => updateDocumentContent(document.id, content)}
+        collaboration={{
+          id: document.id,
+          table: "documents",
+          profile
+        }}
+      />
     </div>
   );
 }
