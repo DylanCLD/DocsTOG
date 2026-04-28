@@ -124,11 +124,26 @@ async function replaceParticipants(sessionId: string, participants?: string) {
     return;
   }
 
+  const emails = entries
+    .filter((entry) => entry.includes("@"))
+    .map((entry) => entry.toLowerCase());
+  const { data: matchedUsers } = emails.length
+    ? await supabase.from("users").select("id,email").in("email", emails)
+    : { data: [] };
+  const userByEmail = new Map((matchedUsers ?? []).map((user) => [user.email.toLowerCase(), user.id]));
+
   await supabase.from("planning_session_participants").insert(
-    entries.map((entry) => ({
-      session_id: sessionId,
-      participant_email: entry.includes("@") ? entry.toLowerCase() : null,
-      participant_name: entry.includes("@") ? null : entry
-    }))
+    entries.map((entry) => {
+      const isEmail = entry.includes("@");
+      const email = isEmail ? entry.toLowerCase() : null;
+      const userId = email ? userByEmail.get(email) ?? null : null;
+
+      return {
+        session_id: sessionId,
+        user_id: userId,
+        participant_email: email,
+        participant_name: isEmail ? null : entry
+      };
+    })
   );
 }

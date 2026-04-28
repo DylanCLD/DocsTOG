@@ -273,7 +273,8 @@ alter table public.media_items enable row level security;
 alter table public.media_item_tags enable row level security;
 
 drop policy if exists "users_select_self_or_admin" on public.users;
-create policy "users_select_self_or_admin" on public.users for select to authenticated using (id = auth.uid() or public.is_admin());
+drop policy if exists "users_select_auth" on public.users;
+create policy "users_select_auth" on public.users for select to authenticated using (true);
 
 drop policy if exists "users_update_self_limited_or_admin" on public.users;
 create policy "users_update_self_limited_or_admin" on public.users for update to authenticated using (id = auth.uid() or public.is_admin()) with check (id = auth.uid() or public.is_admin());

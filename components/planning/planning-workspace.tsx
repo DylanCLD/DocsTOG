@@ -12,9 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { UserMultiSelect } from "@/components/ui/user-multi-select";
 import { formatDate } from "@/lib/utils";
-import type { PlanningSession } from "@/types";
+import type { PlanningSession, Profile } from "@/types";
 import { SESSION_STATUS_LABELS } from "@/types";
+
+type UserOption = Pick<Profile, "id" | "email" | "full_name" | "avatar_url">;
 
 const statusTones = {
   planned: "accent",
@@ -25,10 +28,12 @@ const statusTones = {
 
 export function PlanningWorkspace({
   sessions,
+  users,
   canWrite,
   canDelete
 }: {
   sessions: PlanningSession[];
+  users: UserOption[];
   canWrite: boolean;
   canDelete: boolean;
 }) {
@@ -55,8 +60,8 @@ export function PlanningWorkspace({
     <div className="space-y-5">
       {canWrite && (
         <details className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-          <summary className="cursor-pointer text-sm font-semibold">Créer une session vocale</summary>
-          <SessionForm action={createPlanningSession} />
+          <summary className="cursor-pointer text-sm font-semibold">Creer une session vocale</summary>
+          <SessionForm action={createPlanningSession} users={users} />
         </details>
       )}
 
@@ -74,6 +79,7 @@ export function PlanningWorkspace({
             <SessionCard
               key={session.id}
               session={session}
+              users={users}
               canWrite={canWrite}
               canDelete={canDelete}
               compact
@@ -85,7 +91,7 @@ export function PlanningWorkspace({
       {view === "cards" && (
         <section className="grid gap-3 lg:grid-cols-2">
           {sessions.map((session) => (
-            <SessionCard key={session.id} session={session} canWrite={canWrite} canDelete={canDelete} />
+            <SessionCard key={session.id} session={session} users={users} canWrite={canWrite} canDelete={canDelete} />
           ))}
         </section>
       )}
@@ -113,7 +119,7 @@ export function PlanningWorkspace({
           <CalendarDays className="mb-3 h-8 w-8 text-[var(--accent)]" />
           <h3 className="font-semibold">Aucune session vocale</h3>
           <p className="mt-2 max-w-md text-sm text-[var(--muted)]">
-            Ajoute une première session pour cadrer les objectifs de l’équipe.
+            Ajoute une premiere session pour cadrer les objectifs de lequipe.
           </p>
         </Card>
       )}
@@ -123,11 +129,13 @@ export function PlanningWorkspace({
 
 function SessionCard({
   session,
+  users,
   canWrite,
   canDelete,
   compact = false
 }: {
   session: PlanningSession;
+  users: UserOption[];
   canWrite: boolean;
   canDelete: boolean;
   compact?: boolean;
@@ -147,13 +155,21 @@ function SessionCard({
             <Badge tone={statusTones[session.status]}>{SESSION_STATUS_LABELS[session.status]}</Badge>
           </div>
           <p className="mt-2 text-sm text-[var(--muted)]">
-            {formatDate(session.session_date)} · {session.start_time} - {session.end_time}
+            {formatDate(session.session_date)} - {session.start_time} / {session.end_time}
           </p>
           {!compact && (
             <div className="mt-3 space-y-2 text-sm leading-6 text-[var(--muted)]">
-              {session.objective && <p><span className="font-medium text-[var(--text)]">Objectif:</span> {session.objective}</p>}
+              {session.objective && (
+                <p>
+                  <span className="font-medium text-[var(--text)]">Objectif:</span> {session.objective}
+                </p>
+              )}
               {session.description && <p>{session.description}</p>}
-              {participants && <p><span className="font-medium text-[var(--text)]">Participants:</span> {participants}</p>}
+              {participants && (
+                <p>
+                  <span className="font-medium text-[var(--text)]">Participants:</span> {participants}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -173,7 +189,7 @@ function SessionCard({
       {canWrite && (
         <details className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-3">
           <summary className="cursor-pointer text-sm font-medium">Modifier la session</summary>
-          <SessionForm action={updatePlanningSession.bind(null, session.id)} session={session} />
+          <SessionForm action={updatePlanningSession.bind(null, session.id)} session={session} users={users} />
         </details>
       )}
     </Card>
@@ -182,16 +198,17 @@ function SessionCard({
 
 function SessionForm({
   action,
+  users,
   session
 }: {
   action: (formData: FormData) => Promise<void>;
+  users: UserOption[];
   session?: PlanningSession;
 }) {
   const participants =
     session?.planning_session_participants
       ?.map((participant) => participant.users?.email ?? participant.participant_email ?? participant.participant_name)
-      .filter(Boolean)
-      .join(", ") ?? "";
+      .filter((participant): participant is string => Boolean(participant)) ?? [];
 
   return (
     <form action={action} className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -201,46 +218,74 @@ function SessionForm({
       </div>
       <div>
         <Label htmlFor={`voice_url-${session?.id ?? "new"}`}>Lien Discord ou autre</Label>
-        <Input id={`voice_url-${session?.id ?? "new"}`} name="voice_url" defaultValue={session?.voice_url ?? ""} placeholder="https://discord.gg/..." />
+        <Input
+          id={`voice_url-${session?.id ?? "new"}`}
+          name="voice_url"
+          defaultValue={session?.voice_url ?? ""}
+          placeholder="https://discord.gg/..."
+        />
       </div>
       <div>
         <Label htmlFor={`session_date-${session?.id ?? "new"}`}>Date</Label>
-        <Input id={`session_date-${session?.id ?? "new"}`} name="session_date" type="date" defaultValue={session?.session_date ?? ""} required />
+        <Input
+          id={`session_date-${session?.id ?? "new"}`}
+          name="session_date"
+          type="date"
+          defaultValue={session?.session_date ?? ""}
+          required
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label htmlFor={`start_time-${session?.id ?? "new"}`}>Début</Label>
-          <Input id={`start_time-${session?.id ?? "new"}`} name="start_time" type="time" defaultValue={session?.start_time ?? ""} required />
+          <Label htmlFor={`start_time-${session?.id ?? "new"}`}>Debut</Label>
+          <Input
+            id={`start_time-${session?.id ?? "new"}`}
+            name="start_time"
+            type="time"
+            defaultValue={session?.start_time ?? ""}
+            required
+          />
         </div>
         <div>
           <Label htmlFor={`end_time-${session?.id ?? "new"}`}>Fin</Label>
-          <Input id={`end_time-${session?.id ?? "new"}`} name="end_time" type="time" defaultValue={session?.end_time ?? ""} required />
+          <Input
+            id={`end_time-${session?.id ?? "new"}`}
+            name="end_time"
+            type="time"
+            defaultValue={session?.end_time ?? ""}
+            required
+          />
         </div>
       </div>
       <div>
         <Label htmlFor={`status-${session?.id ?? "new"}`}>Statut</Label>
         <Select id={`status-${session?.id ?? "new"}`} name="status" defaultValue={session?.status ?? "planned"}>
           {Object.entries(SESSION_STATUS_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
+            <option key={value} value={value}>
+              {label}
+            </option>
           ))}
         </Select>
       </div>
       <div>
-        <Label htmlFor={`participants-${session?.id ?? "new"}`}>Participants</Label>
-        <Input id={`participants-${session?.id ?? "new"}`} name="participants" defaultValue={participants} placeholder="Nom ou email, séparés par virgules" />
+        <UserMultiSelect name="participants" users={users} defaultEmails={participants} label="Participants" />
       </div>
       <div>
         <Label htmlFor={`objective-${session?.id ?? "new"}`}>Objectif</Label>
         <Textarea id={`objective-${session?.id ?? "new"}`} name="objective" defaultValue={session?.objective ?? ""} />
       </div>
       <div>
-        <Label htmlFor={`description-${session?.id ?? "new"}`}>Description détaillée</Label>
-        <Textarea id={`description-${session?.id ?? "new"}`} name="description" defaultValue={session?.description ?? ""} />
+        <Label htmlFor={`description-${session?.id ?? "new"}`}>Description detaillee</Label>
+        <Textarea
+          id={`description-${session?.id ?? "new"}`}
+          name="description"
+          defaultValue={session?.description ?? ""}
+        />
       </div>
       <div className="lg:col-span-2">
         <Button type="submit">
           <Plus className="h-4 w-4" />
-          {session ? "Enregistrer" : "Créer la session"}
+          {session ? "Enregistrer" : "Creer la session"}
         </Button>
       </div>
     </form>

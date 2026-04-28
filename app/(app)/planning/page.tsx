@@ -1,16 +1,23 @@
 import { PlanningWorkspace } from "@/components/planning/planning-workspace";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { PlanningSession } from "@/types";
+import type { PlanningSession, Profile } from "@/types";
 
 export default async function PlanningPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("planning_sessions")
-    .select("*, planning_session_participants(*, users:user_id(id,email,full_name,avatar_url))")
-    .order("session_date", { ascending: true })
-    .order("start_time", { ascending: true });
+  const [sessionsResult, usersResult] = await Promise.all([
+    supabase
+      .from("planning_sessions")
+      .select("*, planning_session_participants(*, users:user_id(id,email,full_name,avatar_url))")
+      .order("session_date", { ascending: true })
+      .order("start_time", { ascending: true }),
+    supabase
+      .from("users")
+      .select("id,email,full_name,avatar_url")
+      .order("full_name", { ascending: true, nullsFirst: false })
+      .order("email", { ascending: true })
+  ]);
 
   return (
     <div className="space-y-6">
@@ -23,7 +30,8 @@ export default async function PlanningPage() {
       </div>
 
       <PlanningWorkspace
-        sessions={(data ?? []) as PlanningSession[]}
+        sessions={(sessionsResult.data ?? []) as PlanningSession[]}
+        users={(usersResult.data ?? []) as Pick<Profile, "id" | "email" | "full_name" | "avatar_url">[]}
         canWrite={canWrite(profile.role)}
         canDelete={canDelete(profile.role)}
       />
