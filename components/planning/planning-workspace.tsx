@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { UserMultiSelect } from "@/components/ui/user-multi-select";
 import { formatDate } from "@/lib/utils";
 import type { PlanningSession, Profile } from "@/types";
@@ -283,10 +284,10 @@ function SessionForm({
         />
       </div>
       <div className="lg:col-span-2">
-        <Button type="submit">
+        <SubmitButton pendingLabel={session ? "Enregistrement..." : "Creation..."}>
           <Plus className="h-4 w-4" />
           {session ? "Enregistrer" : "Creer la session"}
-        </Button>
+        </SubmitButton>
       </div>
     </form>
   );

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { FilePlus2, StickyNote } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { createPage } from "@/lib/actions/pages";
 import { requireProfile, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -39,10 +39,10 @@ export default async function PagesPage() {
               <Label htmlFor="category">Categorie</Label>
               <Input id="category" name="category" defaultValue="General" />
             </div>
-            <Button type="submit">
+            <SubmitButton pendingLabel="Creation...">
               <FilePlus2 className="h-4 w-4" />
               Creer
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       )}

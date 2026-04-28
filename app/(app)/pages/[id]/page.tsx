@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock } from "lucide-react";
+import { ArrowLeft, CalendarClock } from "lucide-react";
 import { PageEditorClient } from "@/components/pages/page-editor-client";
+import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { deletePage } from "@/lib/actions/pages";
 import { canDelete, requireProfile } from "@/lib/auth";
@@ -24,7 +26,13 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
-          <p className="text-sm font-medium text-[var(--accent)]">Page</p>
+          <Button variant="ghost" size="sm" asChildCompat>
+            <Link href="/pages">
+              <ArrowLeft className="h-4 w-4" />
+              Retour aux pages
+            </Link>
+          </Button>
+          <p className="mt-3 text-sm font-medium text-[var(--accent)]">Page</p>
           <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
             <span>{page.icon}</span>
             {page.title}

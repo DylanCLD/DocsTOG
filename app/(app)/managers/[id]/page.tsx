@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { DocumentsWorkspace } from "@/components/documents/documents-workspace";
+import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { deleteManager } from "@/lib/actions/managers";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
@@ -33,7 +36,13 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
-          <p className="text-sm font-medium text-[var(--accent)]">Gestionnaire</p>
+          <Button variant="ghost" size="sm" asChildCompat>
+            <Link href="/managers">
+              <ArrowLeft className="h-4 w-4" />
+              Retour aux gestionnaires
+            </Link>
+          </Button>
+          <p className="mt-3 text-sm font-medium text-[var(--accent)]">Gestionnaire</p>
           <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
             <span>{manager.icon}</span>
             {manager.name}

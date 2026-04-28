@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { formatDateTime, getInitials } from "@/lib/utils";
 import type { DocumentManager, DocumentPriority, DocumentRecord, DocumentStatus, Profile, Tag } from "@/types";
 import { PRIORITY_LABELS, STATUS_LABELS } from "@/types";
@@ -117,10 +118,10 @@ export function DocumentsWorkspace({
               </Select>
             </div>
             <div className="flex items-end">
-              <Button type="submit" className="w-full">
+              <SubmitButton className="w-full" pendingLabel="Creation...">
                 <Plus className="h-4 w-4" />
                 Créer le document
-              </Button>
+              </SubmitButton>
             </div>
           </form>
         </details>

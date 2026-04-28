@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import type { MediaItem, Tag } from "@/types";
 import { MEDIA_TYPE_LABELS } from "@/types";
 
@@ -184,10 +185,10 @@ function MediaForm({
         <Textarea id={`media-description-${item?.id ?? "new"}`} name="description" defaultValue={item?.description ?? ""} />
       </div>
       <div className="lg:col-span-2">
-        <Button type="submit">
+        <SubmitButton pendingLabel={item ? "Enregistrement..." : "Ajout..."}>
           <Plus className="h-4 w-4" />
           {item ? "Enregistrer" : "Ajouter"}
-        </Button>
+        </SubmitButton>
       </div>
     </form>
   );

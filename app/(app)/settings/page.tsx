@@ -1,8 +1,8 @@
 import { ShieldCheck, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import {
   addAllowedEmail,
   updateAllowedEmail,
@@ -61,7 +61,7 @@ export default async function SettingsPage() {
                   <option value="light">Clair</option>
                 </Select>
               </div>
-              <Button type="submit">Enregistrer le workspace</Button>
+              <SubmitButton pendingLabel="Enregistrement...">Enregistrer le workspace</SubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -88,7 +88,7 @@ export default async function SettingsPage() {
                   ))}
                 </Select>
               </div>
-              <Button type="submit">Ajouter</Button>
+              <SubmitButton pendingLabel="Ajout...">Ajouter</SubmitButton>
             </form>
 
             <div className="space-y-2">
@@ -104,7 +104,7 @@ export default async function SettingsPage() {
                     <input name="is_active" type="checkbox" defaultChecked={item.is_active} />
                     Actif
                   </label>
-                  <Button type="submit" variant="secondary" size="sm">Mettre à jour</Button>
+                  <SubmitButton variant="secondary" size="sm" pendingLabel="Mise a jour...">Mettre a jour</SubmitButton>
                 </form>
               ))}
               {allowedEmails.length === 0 && <p className="text-sm text-[var(--muted)]">Aucun email autorisé en base.</p>}
@@ -134,7 +134,7 @@ export default async function SettingsPage() {
                   <option key={value} value={value}>{label}</option>
                 ))}
               </Select>
-              <Button type="submit" variant="secondary" size="sm">Changer</Button>
+              <SubmitButton variant="secondary" size="sm" pendingLabel="Changement...">Changer</SubmitButton>
               <p className="md:col-span-4 text-xs text-[var(--muted)]">Dernière activité: {formatDateTime(user.last_seen_at)}</p>
             </form>
           ))}

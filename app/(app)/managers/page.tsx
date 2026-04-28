@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { FileText, FolderKanban, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { createManager } from "@/lib/actions/managers";
 import { canWrite, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -42,10 +42,10 @@ export default async function ManagersPage() {
               <Label htmlFor="name">Nom</Label>
               <Input id="name" name="name" placeholder="Systeme, Lore, Bugs..." required />
             </div>
-            <Button type="submit">
+            <SubmitButton pendingLabel="Creation...">
               <Plus className="h-4 w-4" />
               Creer
-            </Button>
+            </SubmitButton>
             <div className="md:col-span-3">
               <Label htmlFor="description">Description</Label>
               <Textarea id="description" name="description" placeholder="Ce que ce gestionnaire contient..." />
