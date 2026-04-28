@@ -129,6 +129,22 @@ textarea {
   padding-left: 1rem;
 }
 
+.prose-editor aside {
+  background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+  font-weight: 600;
+  padding: 1.15rem 1.25rem;
+}
+
+.prose-editor aside p {
+  color: inherit;
+  font-weight: inherit;
+  line-height: 1.6;
+  margin: 0;
+}
+
 .prose-editor pre {
   background: #090a0d;
   border: 1px solid var(--border);

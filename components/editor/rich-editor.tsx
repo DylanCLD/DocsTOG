@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { JSONContent } from "@tiptap/core";
+import { Node, type JSONContent } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import Color from "@tiptap/extension-color";
@@ -37,6 +37,7 @@ import {
   List,
   ListOrdered,
   Minus,
+  PanelTop,
   Pilcrow,
   Quote,
   Redo2,
@@ -60,6 +61,21 @@ const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
 
 const userColors = ["#3dd6b3", "#8fb3ff", "#f3b862", "#f87171", "#65d68a", "#d9a8ff"];
+
+const AsideBlock = Node.create({
+  name: "asideBlock",
+  group: "block",
+  content: "block+",
+  defining: true,
+
+  parseHTML() {
+    return [{ tag: "aside" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["aside", HTMLAttributes, 0];
+  }
+});
 
 function userColor(id: string) {
   const total = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -220,6 +236,7 @@ export function RichEditor({
       TaskItem.configure({
         nested: true
       }),
+      AsideBlock,
       Typography,
       Placeholder.configure({
         placeholder: "Ecris ici, ajoute des blocs, colle des liens YouTube, structure ton projet..."
@@ -290,6 +307,34 @@ export function RichEditor({
     if (url?.trim()) {
       editor?.chain().focus().setYoutubeVideo({ src: url.trim(), width: 720, height: 405 }).run();
     }
+  };
+
+  const addAside = () => {
+    if (!editor) {
+      return;
+    }
+
+    const { from, to, empty } = editor.state.selection;
+    const selectedText = empty ? "" : editor.state.doc.textBetween(from, to, " ").trim();
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "asideBlock",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: selectedText || "Objectif: "
+              }
+            ]
+          }
+        ]
+      })
+      .run();
   };
 
   const uploadImage = async (file: File) => {
@@ -382,6 +427,9 @@ export function RichEditor({
         </ToolbarButton>
         <ToolbarButton label="Citation" disabled={toolbarDisabled} active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
           <Quote className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton label="Bloc encadre" disabled={toolbarDisabled} active={editor.isActive("asideBlock")} onClick={addAside}>
+          <PanelTop className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton label="Separateur" disabled={toolbarDisabled} onClick={() => editor.chain().focus().setHorizontalRule().run()}>
           <Minus className="h-4 w-4" />
