@@ -6,10 +6,21 @@ import { createClient } from "@/lib/supabase/server";
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ code?: string; error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { code, error, next } = await searchParams;
   const isConfigured = hasSupabaseConfig();
+
+  if (code) {
+    const callbackUrl = new URL("/auth/callback", process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000");
+    callbackUrl.searchParams.set("code", code);
+    if (next) {
+      callbackUrl.searchParams.set("next", next);
+    }
+
+    redirect(`${callbackUrl.pathname}${callbackUrl.search}`);
+  }
+
   const errorMessage =
     error === "missing_admin_env"
       ? "La clé SUPABASE_SERVICE_ROLE_KEY manque côté serveur. Ajoute-la dans .env.local ou Vercel."
