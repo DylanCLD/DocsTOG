@@ -3,6 +3,7 @@ import { FileText, FolderKanban, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { createManager } from "@/lib/actions/managers";
 import { canWrite, requireProfile } from "@/lib/auth";
@@ -35,11 +36,8 @@ export default async function ManagersPage() {
       {canWrite(profile.role) && (
         <details className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
           <summary className="cursor-pointer text-sm font-semibold">Creer un gestionnaire</summary>
-          <form action={createManager} className="mt-4 grid gap-3 md:grid-cols-[5rem_1fr_auto] md:items-end">
-            <div>
-              <Label htmlFor="icon">Icone</Label>
-              <Input id="icon" name="icon" defaultValue="📁" />
-            </div>
+          <form action={createManager} className="mt-4 grid gap-3 md:grid-cols-[10rem_1fr_auto] md:items-end">
+            <IconPickerField defaultValue="📁" />
             <div>
               <Label htmlFor="name">Nom</Label>
               <Input id="name" name="name" placeholder="Systeme, Lore, Bugs..." required />
