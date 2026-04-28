@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import Color from "@tiptap/extension-color";
 import DragHandle from "@tiptap/extension-drag-handle";
 import Highlight from "@tiptap/extension-highlight";
@@ -44,19 +46,29 @@ import {
   Undo2,
   YoutubeIcon
 } from "lucide-react";
+import * as Y from "yjs";
+import { SupabaseYjsProvider } from "@/components/editor/supabase-yjs-provider";
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { createClient } from "@/lib/supabase/browser";
 import { cn, emptyDoc } from "@/lib/utils";
-import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import type { Profile } from "@/types";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type RealtimeTable = "pages" | "documents";
-type PresenceUser = Pick<Profile, "id" | "email" | "full_name" | "avatar_url"> & {
-  online_at: string;
-};
 
 const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
+
+const userColors = ["#3dd6b3", "#8fb3ff", "#f3b862", "#f87171", "#65d68a", "#d9a8ff"];
+
+function userColor(id: string) {
+  const total = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return userColors[total % userColors.length];
+}
+
+function userName(profile: Pick<Profile, "email" | "full_name">) {
+  return profile.full_name ?? profile.email;
+}
 
 export function RichEditor({
   value,
@@ -75,8 +87,10 @@ export function RichEditor({
 }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [uploading, setUploading] = useState(false);
-  const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
-  const [remoteContent, setRemoteContent] = useState<JSONContent | null>(null);
+  const [activeUsers, setActiveUsers] = useState<Array<Record<string, unknown>>>([]);
+  const seededRef = useRef(false);
+  const collaborationId = collaboration?.id;
+  const collaborationTable = collaboration?.table;
 
   const initialContent = useMemo(() => {
     if (value && typeof value === "object") {
@@ -85,6 +99,28 @@ export function RichEditor({
 
     return emptyDoc() as JSONContent;
   }, [value]);
+
+  const collaborationState = useMemo(() => {
+    if (!collaborationId || !collaborationTable) {
+      return null;
+    }
+
+    const doc = new Y.Doc();
+    const provider = new SupabaseYjsProvider({
+      doc,
+      room: `editor-yjs:${collaborationTable}:${collaborationId}`
+    });
+
+    return { doc, provider };
+  }, [collaborationId, collaborationTable]);
+
+  useEffect(
+    () => () => {
+      collaborationState?.provider.destroy();
+      collaborationState?.doc.destroy();
+    },
+    [collaborationState]
+  );
 
   const saveContent = useCallback(
     async (content: JSONContent) => {
@@ -95,7 +131,6 @@ export function RichEditor({
       setSaveStatus("saving");
       try {
         await onSave(content);
-        setRemoteContent(null);
         setSaveStatus("saved");
       } catch {
         setSaveStatus("error");
@@ -104,18 +139,56 @@ export function RichEditor({
     [onSave, readOnly]
   );
 
-  const debouncedSave = useDebouncedCallback(saveContent, 1200);
+  const debouncedSave = useDebouncedCallback(saveContent, collaborationState ? 650 : 1200);
 
   const editor = useEditor({
     immediatelyRender: false,
     editable: !readOnly,
-    content: initialContent,
+    content: collaborationState ? undefined : initialContent,
     extensions: [
       StarterKit.configure({
+        undoRedo: collaborationState ? false : undefined,
         heading: {
           levels: [1, 2, 3]
         }
       }),
+      ...(collaborationState && collaboration
+        ? [
+            Collaboration.configure({
+              document: collaborationState.doc
+            }),
+            CollaborationCaret.configure({
+              provider: collaborationState.provider,
+              user: {
+                id: collaboration.profile.id,
+                name: userName(collaboration.profile),
+                color: userColor(collaboration.profile.id)
+              },
+              onUpdate: (users) => {
+                setActiveUsers(users.filter((user) => user.id !== collaboration.profile.id));
+                return null;
+              },
+              render: (user) => {
+                const cursor = document.createElement("span");
+                cursor.classList.add("collaboration-caret");
+                cursor.style.borderColor = user.color;
+
+                const label = document.createElement("div");
+                label.classList.add("collaboration-caret-label");
+                label.style.backgroundColor = user.color;
+                label.textContent = user.name;
+
+                cursor.appendChild(label);
+                return cursor;
+              },
+              selectionRender: (user) => ({
+                nodeName: "span",
+                class: "collaboration-selection",
+                style: `background-color: ${user.color}33`
+              })
+            })
+          ]
+        : []),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -149,76 +222,34 @@ export function RichEditor({
       }),
       Typography,
       Placeholder.configure({
-        placeholder: "Écris ici, ajoute des blocs, colle des liens YouTube, structure ton projet..."
+        placeholder: "Ecris ici, ajoute des blocs, colle des liens YouTube, structure ton projet..."
       }),
       DragHandle.configure({
         render: () => {
           const element = document.createElement("div");
           element.className = "tiptap-drag-handle";
-          element.textContent = "⋮⋮";
+          element.textContent = "::";
           return element;
         }
       })
     ],
+    onCreate: ({ editor: currentEditor }) => {
+      if (!collaborationState || seededRef.current) {
+        return;
+      }
+
+      seededRef.current = true;
+
+      window.setTimeout(() => {
+        if (currentEditor.isEmpty) {
+          currentEditor.commands.setContent(initialContent, { emitUpdate: true });
+        }
+      }, 350);
+    },
     onUpdate: ({ editor: currentEditor }) => {
       debouncedSave(currentEditor.getJSON());
     }
   });
-
-  useEffect(() => {
-    if (!collaboration || !editor) {
-      return;
-    }
-
-    const supabase = createClient();
-    const channel = supabase.channel(`editor:${collaboration.table}:${collaboration.id}`, {
-      config: {
-        presence: {
-          key: collaboration.profile.id
-        }
-      }
-    });
-
-    const refreshPresence = () => {
-      const state = channel.presenceState<PresenceUser>();
-      const users = Object.values(state)
-        .flat()
-        .filter((user) => user.id !== collaboration.profile.id);
-      setPresenceUsers(users);
-    };
-
-    channel
-      .on("presence", { event: "sync" }, refreshPresence)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: collaboration.table,
-          filter: `id=eq.${collaboration.id}`
-        },
-        (payload) => {
-          const nextContent = payload.new?.content as JSONContent | undefined;
-          const updatedBy = payload.new?.updated_by as string | null | undefined;
-
-          if (nextContent && updatedBy !== collaboration.profile.id) {
-            setRemoteContent(nextContent);
-          }
-        }
-      )
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({
-            ...collaboration.profile,
-            online_at: new Date().toISOString()
-          });
-        }
-      });
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [collaboration, editor]);
 
   const runSave = async () => {
     if (!editor) {
@@ -291,33 +322,21 @@ export function RichEditor({
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-      {(presenceUsers.length > 0 || remoteContent) && (
+      {collaborationState && (
         <div className="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
-            {presenceUsers.length > 0 && (
-              <span>
-                En direct:{" "}
-                <strong className="text-[var(--text)]">
-                  {presenceUsers.map((user) => user.full_name ?? user.email).join(", ")}
-                </strong>
-              </span>
+            <span className="inline-flex h-2 w-2 rounded-full bg-[var(--accent)]" />
+            <span>Collaboration en direct active</span>
+            {activeUsers.length > 0 && (
+              <strong className="text-[var(--text)]">
+                {activeUsers.map((user) => String(user.name ?? "Utilisateur")).join(", ")}
+              </strong>
             )}
-            {remoteContent && <span className="text-amber-200">Une version plus recente vient d&apos;etre sauvegardee.</span>}
           </div>
-          {remoteContent && (
-            <button
-              type="button"
-              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]"
-              onClick={() => {
-                editor.commands.setContent(remoteContent, { emitUpdate: false });
-                setRemoteContent(null);
-              }}
-            >
-              Charger la version recente
-            </button>
-          )}
+          <span className="text-xs text-[var(--muted)]">Sauvegarde auto en arriere-plan</span>
         </div>
       )}
+
       <div className="flex flex-wrap items-center gap-1 border-b border-[var(--border)] bg-[var(--surface-elevated)] p-2">
         <ToolbarButton label="Paragraphe" disabled={toolbarDisabled} onClick={() => editor.chain().focus().setParagraph().run()}>
           <Pilcrow className="h-4 w-4" />
@@ -345,7 +364,7 @@ export function RichEditor({
         <ToolbarButton label="Italique" disabled={toolbarDisabled} active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
           <Italic className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Souligné" disabled={toolbarDisabled} active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+        <ToolbarButton label="Souligne" disabled={toolbarDisabled} active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}>
           <UnderlineIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton label="Code" disabled={toolbarDisabled} active={editor.isActive("code")} onClick={() => editor.chain().focus().toggleCode().run()}>
@@ -355,7 +374,7 @@ export function RichEditor({
         <ToolbarButton label="Liste" disabled={toolbarDisabled} active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
           <List className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Liste numérotée" disabled={toolbarDisabled} active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+        <ToolbarButton label="Liste numerotee" disabled={toolbarDisabled} active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton label="Checklist" disabled={toolbarDisabled} active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}>
@@ -364,7 +383,7 @@ export function RichEditor({
         <ToolbarButton label="Citation" disabled={toolbarDisabled} active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
           <Quote className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Séparateur" disabled={toolbarDisabled} onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+        <ToolbarButton label="Separateur" disabled={toolbarDisabled} onClick={() => editor.chain().focus().setHorizontalRule().run()}>
           <Minus className="h-4 w-4" />
         </ToolbarButton>
         <Divider />
@@ -414,7 +433,7 @@ export function RichEditor({
         <ToolbarButton label="Annuler" disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>
           <Undo2 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Rétablir" disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>
+        <ToolbarButton label="Retablir" disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>
           <Redo2 className="h-4 w-4" />
         </ToolbarButton>
         <button
@@ -431,12 +450,12 @@ export function RichEditor({
       <EditorContent editor={editor} className="prose-editor" />
 
       <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--muted)]">
-        <span>Glisse les poignées à gauche des blocs pour réorganiser le contenu.</span>
+        <span>Glisse les poignees a gauche des blocs pour reorganiser le contenu.</span>
         <span>
           {saveStatus === "saving" && "Sauvegarde..."}
-          {saveStatus === "saved" && "Sauvegardé"}
+          {saveStatus === "saved" && "Sauvegarde auto OK"}
           {saveStatus === "error" && "Erreur de sauvegarde"}
-          {saveStatus === "idle" && "Prêt"}
+          {saveStatus === "idle" && "Pret"}
         </span>
       </div>
     </div>

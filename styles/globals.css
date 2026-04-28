@@ -229,3 +229,31 @@ textarea {
   color: var(--text);
   border-color: var(--accent);
 }
+
+.collaboration-caret {
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+
+.collaboration-caret-label {
+  border-radius: 6px;
+  color: #07110f;
+  font-size: 0.72rem;
+  font-weight: 700;
+  left: -2px;
+  line-height: 1;
+  padding: 0.25rem 0.4rem;
+  position: absolute;
+  top: -1.55rem;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.collaboration-selection {
+  border-radius: 3px;
+}
