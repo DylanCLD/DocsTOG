@@ -76,7 +76,7 @@ export function UserMultiSelect({
           <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)] transition group-open:rotate-180" />
         </summary>
 
-        <div className="absolute left-0 right-0 z-40 mt-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-black/30 md:w-[28rem]">
+        <div className="absolute left-0 right-0 z-40 mt-2 max-h-[26rem] rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 shadow-2xl shadow-black/30 md:w-[28rem]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
             <input
@@ -103,7 +103,7 @@ export function UserMultiSelect({
             </span>
           </button>
 
-          <div className="mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
+          <div className="mt-3 max-h-56 space-y-1 overflow-y-auto pr-1">
             {filteredUsers.map((user) => {
               const checked = selectedEmails.has(user.email.toLowerCase());
 
@@ -114,9 +114,7 @@ export function UserMultiSelect({
                   onClick={() => toggleEmail(user.email)}
                   className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-[var(--surface-elevated)]"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-xs font-semibold">
-                    {getInitials(user.full_name ?? user.email)}
-                  </span>
+                  <UserAvatar user={user} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{user.full_name ?? user.email}</span>
                     <span className="block truncate text-xs text-[var(--muted)]">{user.email}</span>
@@ -140,5 +138,23 @@ export function UserMultiSelect({
         </div>
       </details>
     </div>
+  );
+}
+
+function UserAvatar({ user }: { user: UserOption }) {
+  if (user.avatar_url) {
+    return (
+      <span
+        className="h-8 w-8 shrink-0 rounded-lg border border-[var(--border)] bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url("${user.avatar_url}")` }}
+        aria-label={user.full_name ?? user.email}
+      />
+    );
+  }
+
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-xs font-semibold">
+      {getInitials(user.full_name ?? user.email)}
+    </span>
   );
 }

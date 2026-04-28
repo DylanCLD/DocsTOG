@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type FocusEvent } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ type SearchResult = {
 export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [isFocused, setIsFocused] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const label = useMemo(() => {
@@ -31,8 +32,18 @@ export function GlobalSearch() {
     return `${results.length} résultat${results.length > 1 ? "s" : ""}`;
   }, [isPending, query, results.length]);
 
+  const closeWhenLeavingSearch = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setIsFocused(false);
+    }
+  };
+
   return (
-    <div className="relative w-full max-w-2xl">
+    <div
+      className="relative w-full max-w-2xl"
+      onFocusCapture={() => setIsFocused(true)}
+      onBlurCapture={closeWhenLeavingSearch}
+    >
       <Input
         value={query}
         onChange={(event) => {
@@ -47,13 +58,19 @@ export function GlobalSearch() {
             setResults(await searchWorkspace(nextQuery));
           });
         }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsFocused(false);
+            event.currentTarget.blur();
+          }
+        }}
         placeholder="Rechercher pages, documents, médias, sessions..."
         className="pl-9"
       />
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
       <span className="sr-only">{label}</span>
 
-      {query.trim().length >= 2 && (
+      {isFocused && query.trim().length >= 2 && (
         <div className="absolute left-0 right-0 top-12 z-30 max-h-96 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl shadow-black/30">
           {results.length === 0 ? (
             <p className="px-3 py-4 text-sm text-[var(--muted)]">
