@@ -46,7 +46,7 @@ export function LoginCard({
         </div>
         <h1 className="text-2xl font-semibold">Connexion au site projet</h1>
         <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          Connecte-toi avec Google. Seules les adresses autorisées par l’équipe peuvent accéder au workspace.
+          Connecte-toi avec Google. Seules les adresses autorisees par l&apos;equipe peuvent acceder au workspace.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export function LoginCard({
 
       {!isConfigured && (
         <p className="mt-4 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm leading-6 text-amber-100">
-          Configuration Supabase manquante. Crée `.env.local` à partir de `.env.example`, puis ajoute les clés Supabase
+          Configuration Supabase manquante. Cree `.env.local` a partir de `.env.example`, puis ajoute les cles Supabase
           et relance le serveur.
         </p>
       )}

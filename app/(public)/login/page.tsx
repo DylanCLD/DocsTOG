@@ -6,9 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ code?: string; error?: string; next?: string }>;
+  searchParams: Promise<{ code?: string; error?: string; message?: string; next?: string }>;
 }) {
-  const { code, error, next } = await searchParams;
+  const { code, error, message, next } = await searchParams;
   const isConfigured = hasSupabaseConfig();
 
   if (code) {
@@ -23,9 +23,9 @@ export default async function LoginPage({
 
   const errorMessage =
     error === "missing_admin_env"
-      ? "La clé SUPABASE_SERVICE_ROLE_KEY manque côté serveur. Ajoute-la dans .env.local ou Vercel."
+      ? "La cle SUPABASE_SERVICE_ROLE_KEY manque cote serveur. Ajoute-la dans .env.local ou Vercel."
       : error
-        ? "La connexion Google a échoué. Vérifie la configuration OAuth Supabase."
+        ? `La connexion Google a echoue${message ? `: ${message}` : ". Verifie la configuration OAuth Supabase."}`
         : null;
 
   if (isConfigured) {

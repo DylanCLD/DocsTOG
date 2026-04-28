@@ -9,14 +9,20 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", request.url));
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("error", "missing_code");
+    loginUrl.searchParams.set("message", "Code OAuth absent.");
+    return NextResponse.redirect(loginUrl);
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(new URL("/login?error=oauth", request.url));
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("error", "oauth");
+    loginUrl.searchParams.set("message", error.message);
+    return NextResponse.redirect(loginUrl);
   }
 
   const {
