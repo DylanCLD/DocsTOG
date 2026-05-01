@@ -16,6 +16,10 @@ import type { DocumentManager, DocumentRecord, Profile } from "@/types";
 
 type DocumentWithManager = DocumentRecord & { document_managers: DocumentManager };
 
+type NavigationDocument = Omit<DocumentRecord, "parent_document_id"> & {
+  parent_document_id?: string | null;
+};
+
 export default async function DocumentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profile = await requireProfile();
@@ -48,7 +52,19 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   ]);
 
   const users = (usersResult.data ?? []) as Profile[];
-  const siblings = (siblingDocumentsResult.data ?? []) as unknown as DocumentRecord[];
+  let navigationDocuments = (siblingDocumentsResult.data ?? []) as unknown as NavigationDocument[];
+
+  if (siblingDocumentsResult.error) {
+    const fallbackDocumentsResult = await supabase
+      .from("documents")
+      .select("id,manager_id,title,short_description,status,priority,responsible_id,content,created_by,updated_by,created_at,updated_at,document_tags(tags(id,name,color,created_at))")
+      .eq("manager_id", document.manager_id)
+      .order("updated_at", { ascending: false });
+
+    navigationDocuments = (fallbackDocumentsResult.data ?? []) as unknown as NavigationDocument[];
+  }
+
+  const siblings = mergeCurrentDocumentIntoNavigation(document, navigationDocuments);
   const internalLinkTargets = buildInternalLinkTargets(
     allPagesResult.data ?? [],
     (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1]
@@ -109,4 +125,17 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
       </main>
     </div>
   );
+}
+
+function mergeCurrentDocumentIntoNavigation(current: DocumentWithManager, documents: NavigationDocument[]): DocumentRecord[] {
+  const normalized = documents.map((document) => ({
+    ...document,
+    parent_document_id: document.parent_document_id ?? null
+  })) as DocumentRecord[];
+
+  if (normalized.some((document) => document.id === current.id)) {
+    return normalized;
+  }
+
+  return [{ ...current, parent_document_id: current.parent_document_id ?? null }, ...normalized];
 }
