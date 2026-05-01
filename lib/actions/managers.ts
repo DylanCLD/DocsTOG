@@ -102,6 +102,66 @@ export async function createDocument(managerId: string, formData: FormData) {
   redirect(`/documents/${data.id}`);
 }
 
+export async function createSubDocument(parentDocumentId: string, title: string) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusee.");
+  }
+
+  const parsed = documentSchema.parse({
+    title,
+    status: "todo",
+    priority: "medium",
+    tags: ""
+  });
+
+  const supabase = await createClient();
+  const { data: parent, error: parentError } = await supabase
+    .from("documents")
+    .select("id,manager_id")
+    .eq("id", parentDocumentId)
+    .maybeSingle();
+
+  if (parentError) {
+    throw new Error(parentError.message);
+  }
+
+  if (!parent) {
+    throw new Error("Document parent introuvable.");
+  }
+
+  const { data, error } = await supabase
+    .from("documents")
+    .insert({
+      manager_id: parent.manager_id,
+      parent_document_id: parent.id,
+      title: parsed.title,
+      short_description: null,
+      status: parsed.status,
+      priority: parsed.priority,
+      content: emptyDoc(),
+      created_by: profile.id,
+      updated_by: profile.id
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/managers");
+  revalidatePath(`/managers/${parent.manager_id}`);
+  revalidatePath(`/documents/${parent.id}`);
+
+  return { id: data.id as string, href: `/documents/${data.id}` };
+}
+
+export async function createSubDocumentFromForm(parentDocumentId: string, formData: FormData) {
+  const result = await createSubDocument(parentDocumentId, formString(formData, "title"));
+  redirect(result.href);
+}
+
 export async function updateDocumentMeta(documentId: string, formData: FormData) {
   const profile = await requireProfile();
   if (!canWrite(profile.role)) {

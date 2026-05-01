@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Grid2X2, ListFilter, Plus, Search } from "lucide-react";
+import { DocumentTreeNav } from "@/components/documents/document-tree-nav";
 import { createDocument } from "@/lib/actions/managers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export function DocumentsWorkspace({
   const [priority, setPriority] = useState("all");
   const [tag, setTag] = useState("all");
   const [responsible, setResponsible] = useState("all");
-  const [view, setView] = useState<ViewMode>("cards");
+  const [view, setView] = useState<ViewMode>("list");
 
   const tags = useMemo(() => {
     const map = new Map<string, Tag>();
@@ -173,19 +174,7 @@ export function DocumentsWorkspace({
           ))}
         </section>
       ) : (
-        <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
-          {filtered.map((document) => (
-            <Link key={document.id} href={`/documents/${document.id}`} className="grid gap-3 border-b border-[var(--border)] px-4 py-3 transition last:border-b-0 hover:bg-[var(--surface-elevated)] md:grid-cols-[1fr_8rem_8rem_12rem] md:items-center">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{document.title}</p>
-                <p className="truncate text-sm text-[var(--muted)]">{document.short_description ?? "Sans description"}</p>
-              </div>
-              <Badge tone={statusTones[document.status]}>{STATUS_LABELS[document.status]}</Badge>
-              <Badge tone={priorityTones[document.priority]}>{PRIORITY_LABELS[document.priority]}</Badge>
-              <p className="truncate text-sm text-[var(--muted)]">{document.users?.full_name ?? document.users?.email ?? "Non assigné"}</p>
-            </Link>
-          ))}
-        </section>
+        <DocumentTreeNav documents={filtered} defaultOpenAll />
       )}
     </div>
   );

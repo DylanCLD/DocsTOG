@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Node, type JSONContent } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
@@ -28,6 +29,7 @@ import {
   CheckSquare,
   Code,
   Columns3,
+  FileSymlink,
   Heading1,
   Heading2,
   Highlighter,
@@ -39,23 +41,30 @@ import {
   Minus,
   PanelTop,
   Pilcrow,
+  Plus,
   Quote,
   Redo2,
   Save,
+  Search,
   TableIcon,
   UnderlineIcon,
   Undo2,
+  X,
   YoutubeIcon
 } from "lucide-react";
 import * as Y from "yjs";
 import { SupabaseYjsProvider } from "@/components/editor/supabase-yjs-provider";
+import { createSubDocument } from "@/lib/actions/managers";
+import { createSubPage } from "@/lib/actions/pages";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { createClient } from "@/lib/supabase/browser";
 import { cn, emptyDoc } from "@/lib/utils";
-import type { Profile } from "@/types";
+import type { InternalLinkTarget, Profile } from "@/types";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type RealtimeTable = "pages" | "documents";
+type CurrentInternalTarget = { type: "page" | "document"; id: string };
+type InternalLinkTab = InternalLinkTarget["type"] | "create";
 
 const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
@@ -90,11 +99,15 @@ export function RichEditor({
   value,
   onSave,
   readOnly = false,
-  collaboration
+  collaboration,
+  internalLinkTargets = [],
+  currentTarget
 }: {
   value: unknown;
   onSave: (content: JSONContent) => Promise<void>;
   readOnly?: boolean;
+  internalLinkTargets?: InternalLinkTarget[];
+  currentTarget?: CurrentInternalTarget;
   collaboration?: {
     id: string;
     table: RealtimeTable;
@@ -104,7 +117,15 @@ export function RichEditor({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [uploading, setUploading] = useState(false);
   const [activeUsers, setActiveUsers] = useState<Array<Record<string, unknown>>>([]);
+  const [internalLinkOpen, setInternalLinkOpen] = useState(false);
+  const [internalLinkQuery, setInternalLinkQuery] = useState("");
+  const [internalLinkTab, setInternalLinkTab] = useState<InternalLinkTab>("page");
+  const [internalLinkTitle, setInternalLinkTitle] = useState("");
+  const [internalLinkError, setInternalLinkError] = useState<string | null>(null);
+  const [creatingInternalLink, setCreatingInternalLink] = useState(false);
   const seededRef = useRef(false);
+  const internalLinkSelectionRef = useRef<{ from: number; to: number; empty: boolean } | null>(null);
+  const router = useRouter();
   const collaborationId = collaboration?.id;
   const collaborationTable = collaboration?.table;
 
@@ -115,6 +136,21 @@ export function RichEditor({
 
     return emptyDoc() as JSONContent;
   }, [value]);
+
+  const filteredInternalTargets = useMemo(() => {
+    const normalizedQuery = internalLinkQuery.trim().toLowerCase();
+
+    return internalLinkTargets
+      .filter((target) => target.type === internalLinkTab)
+      .filter((target) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return `${target.title} ${target.subtitle ?? ""}`.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 40);
+  }, [internalLinkQuery, internalLinkTab, internalLinkTargets]);
 
   const collaborationState = useMemo(() => {
     if (!collaborationId || !collaborationTable) {
@@ -207,7 +243,7 @@ export function RichEditor({
         : []),
       Underline,
       Link.configure({
-        openOnClick: false,
+        openOnClick: readOnly,
         autolink: true,
         defaultProtocol: "https"
       }),
@@ -265,6 +301,29 @@ export function RichEditor({
     },
     onUpdate: ({ editor: currentEditor }) => {
       debouncedSave(currentEditor.getJSON());
+    },
+    editorProps: {
+      handleClick: (_view, _pos, event) => {
+        const element = event.target instanceof Element ? event.target : null;
+        const anchor = element?.closest("a[href]");
+        const href = anchor?.getAttribute("href");
+
+        if (!href) {
+          return false;
+        }
+
+        if (!readOnly && !event.metaKey && !event.ctrlKey) {
+          return false;
+        }
+
+        if (href.startsWith("/")) {
+          window.location.href = href;
+        } else {
+          window.open(href, "_blank", "noopener,noreferrer");
+        }
+
+        return true;
+      }
     }
   });
 
@@ -293,6 +352,90 @@ export function RichEditor({
     }
 
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+  };
+
+  const openInternalLinkPicker = () => {
+    if (!editor) {
+      return;
+    }
+
+    const { from, to, empty } = editor.state.selection;
+    const selectedText = empty ? "" : editor.state.doc.textBetween(from, to, " ").trim();
+
+    internalLinkSelectionRef.current = { from, to, empty };
+    setInternalLinkQuery("");
+    setInternalLinkError(null);
+    setInternalLinkTab(currentTarget?.type ?? "page");
+    setInternalLinkTitle(selectedText || (currentTarget?.type === "document" ? "Nouveau sous-document" : "Nouvelle sous-page"));
+    setInternalLinkOpen(true);
+  };
+
+  const applyInternalLink = (href: string, fallbackTitle: string) => {
+    if (!editor) {
+      return;
+    }
+
+    const selection = internalLinkSelectionRef.current;
+    const label = fallbackTitle.trim() || href;
+    let chain = editor.chain().focus();
+
+    if (selection) {
+      chain = chain.setTextSelection({ from: selection.from, to: selection.to });
+    }
+
+    if (!selection || selection.empty) {
+      chain
+        .insertContent({
+          type: "text",
+          text: label,
+          marks: [
+            {
+              type: "link",
+              attrs: { href }
+            }
+          ]
+        })
+        .run();
+    } else {
+      chain.extendMarkRange("link").setLink({ href }).run();
+    }
+
+    setInternalLinkOpen(false);
+    setInternalLinkError(null);
+    internalLinkSelectionRef.current = null;
+  };
+
+  const createInternalChild = async () => {
+    if (!currentTarget) {
+      setInternalLinkError("Ouvre une page ou un document pour creer un enfant.");
+      return;
+    }
+
+    const title = internalLinkTitle.trim();
+    if (!title) {
+      setInternalLinkError("Titre requis.");
+      return;
+    }
+
+    setCreatingInternalLink(true);
+    setInternalLinkError(null);
+
+    try {
+      const result =
+        currentTarget.type === "page"
+          ? await createSubPage(currentTarget.id, title)
+          : await createSubDocument(currentTarget.id, title);
+
+      applyInternalLink(result.href, title);
+      if (editor) {
+        await saveContent(editor.getJSON());
+      }
+      router.refresh();
+    } catch (error) {
+      setInternalLinkError(error instanceof Error ? error.message : "Creation impossible.");
+    } finally {
+      setCreatingInternalLink(false);
+    }
   };
 
   const addImageUrl = () => {
@@ -364,6 +507,9 @@ export function RichEditor({
   }
 
   const toolbarDisabled = readOnly;
+  const activeLinkHref = editor.getAttributes("link").href as string | undefined;
+  const isInternalLinkActive = Boolean(activeLinkHref?.startsWith("/pages/") || activeLinkHref?.startsWith("/documents/"));
+  const childLabel = currentTarget?.type === "document" ? "sous-document" : "sous-page";
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
@@ -438,6 +584,9 @@ export function RichEditor({
         <ToolbarButton label="Lien" disabled={toolbarDisabled} active={editor.isActive("link")} onClick={addLink}>
           <LinkIcon className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton label="Lien interne" disabled={toolbarDisabled} active={isInternalLinkActive} onClick={openInternalLinkPicker}>
+          <FileSymlink className="h-4 w-4" />
+        </ToolbarButton>
         <ToolbarButton label="Image par URL" disabled={toolbarDisabled} onClick={addImageUrl}>
           <ImageIcon className="h-4 w-4" />
         </ToolbarButton>
@@ -494,6 +643,128 @@ export function RichEditor({
           Sauvegarder
         </button>
       </div>
+
+      {internalLinkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-2xl overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-2xl shadow-black/40">
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
+              <div>
+                <h2 className="text-sm font-semibold">Lien interne</h2>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">Lie le texte selectionne a une page ou un document.</p>
+              </div>
+              <button
+                type="button"
+                className={cn(buttonClass, "shrink-0")}
+                aria-label="Fermer"
+                onClick={() => {
+                  setInternalLinkOpen(false);
+                  setInternalLinkError(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInternalLinkTab("page")}
+                  className={cn(
+                    "h-9 rounded-lg border px-3 text-sm font-medium transition",
+                    internalLinkTab === "page"
+                      ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
+                      : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+                  )}
+                >
+                  Pages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInternalLinkTab("document")}
+                  className={cn(
+                    "h-9 rounded-lg border px-3 text-sm font-medium transition",
+                    internalLinkTab === "document"
+                      ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
+                      : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+                  )}
+                >
+                  Documents
+                </button>
+                {currentTarget && (
+                  <button
+                    type="button"
+                    onClick={() => setInternalLinkTab("create")}
+                    className={cn(
+                      "h-9 rounded-lg border px-3 text-sm font-medium transition",
+                      internalLinkTab === "create"
+                        ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
+                        : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+                    )}
+                  >
+                    Creer {childLabel}
+                  </button>
+                )}
+              </div>
+
+              {internalLinkTab === "create" ? (
+                <div className="space-y-3">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-[var(--muted)]" htmlFor="internal-link-title">
+                    Titre
+                  </label>
+                  <input
+                    id="internal-link-title"
+                    value={internalLinkTitle}
+                    onChange={(event) => setInternalLinkTitle(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)]"
+                    placeholder={`Titre du ${childLabel}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={createInternalChild}
+                    disabled={creatingInternalLink}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 text-sm font-medium text-[#07110f] transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {creatingInternalLink ? "Creation..." : "Creer et lier"}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input
+                      value={internalLinkQuery}
+                      onChange={(event) => setInternalLinkQuery(event.target.value)}
+                      className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-9 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+                      placeholder="Rechercher..."
+                    />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+                  </div>
+                  <div className="max-h-80 overflow-y-auto rounded-lg border border-[var(--border)]">
+                    {filteredInternalTargets.length === 0 ? (
+                      <p className="px-3 py-6 text-center text-sm text-[var(--muted)]">Aucune cible trouvee.</p>
+                    ) : (
+                      filteredInternalTargets.map((target) => (
+                        <button
+                          key={`${target.type}-${target.id}`}
+                          type="button"
+                          onClick={() => applyInternalLink(target.href, target.title)}
+                          className="block w-full border-b border-[var(--border)] px-3 py-2 text-left transition last:border-b-0 hover:bg-[var(--surface-elevated)]"
+                        >
+                          <span className="block truncate text-sm font-medium">{target.title}</span>
+                          {target.subtitle && <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">{target.subtitle}</span>}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {internalLinkError && <p className="text-sm text-red-300">{internalLinkError}</p>}
+            </div>
+          </div>
+        </div>
+      )}
 
       <EditorContent editor={editor} className="prose-editor" />
 

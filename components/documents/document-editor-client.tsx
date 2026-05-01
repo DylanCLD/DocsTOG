@@ -4,17 +4,19 @@ import { updateDocumentContent, updateDocumentMeta } from "@/lib/actions/manager
 import { RichEditor } from "@/components/editor/rich-editor";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import type { DocumentRecord, Profile } from "@/types";
+import type { DocumentRecord, InternalLinkTarget, Profile } from "@/types";
 import { PRIORITY_LABELS, STATUS_LABELS } from "@/types";
 
 export function DocumentEditorClient({
   document,
   users,
-  profile
+  profile,
+  internalLinkTargets
 }: {
   document: DocumentRecord;
   users: Profile[];
   profile: Profile;
+  internalLinkTargets: InternalLinkTarget[];
 }) {
   const readOnly = profile.role === "reader";
   const tags = document.document_tags?.map((item) => item.tags?.name).filter(Boolean).join(", ") ?? "";
@@ -71,6 +73,8 @@ export function DocumentEditorClient({
       <RichEditor
         value={document.content}
         readOnly={readOnly}
+        internalLinkTargets={internalLinkTargets}
+        currentTarget={{ type: "document", id: document.id }}
         onSave={(content) => updateDocumentContent(document.id, content)}
         collaboration={{
           id: document.id,

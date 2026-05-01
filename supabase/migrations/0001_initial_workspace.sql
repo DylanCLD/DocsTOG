@@ -74,6 +74,7 @@ on conflict (id) do nothing;
 
 create table if not exists public.pages (
   id uuid primary key default gen_random_uuid(),
+  parent_page_id uuid references public.pages(id) on delete set null,
   title text not null,
   icon text not null default '📄',
   category text not null default 'Général',
@@ -81,7 +82,8 @@ create table if not exists public.pages (
   created_by uuid references public.users(id) on delete set null,
   updated_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint pages_parent_not_self check (parent_page_id is null or parent_page_id <> id)
 );
 
 create table if not exists public.document_managers (
@@ -98,6 +100,7 @@ create table if not exists public.document_managers (
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
   manager_id uuid not null references public.document_managers(id) on delete cascade,
+  parent_document_id uuid references public.documents(id) on delete set null,
   title text not null,
   short_description text,
   status public.document_status not null default 'todo',
@@ -107,7 +110,8 @@ create table if not exists public.documents (
   created_by uuid references public.users(id) on delete set null,
   updated_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint documents_parent_not_self check (parent_document_id is null or parent_document_id <> id)
 );
 
 create table if not exists public.tags (
@@ -181,7 +185,10 @@ create table if not exists public.media_item_tags (
 );
 
 create index if not exists pages_title_category_idx on public.pages using gin (to_tsvector('simple', title || ' ' || category));
+create index if not exists pages_parent_page_idx on public.pages(parent_page_id);
 create index if not exists documents_manager_idx on public.documents(manager_id);
+create index if not exists documents_parent_document_idx on public.documents(parent_document_id);
+create index if not exists documents_manager_parent_idx on public.documents(manager_id, parent_document_id);
 create index if not exists documents_status_priority_idx on public.documents(status, priority);
 create index if not exists planning_sessions_date_idx on public.planning_sessions(session_date, start_time);
 create index if not exists media_items_type_idx on public.media_items(type);

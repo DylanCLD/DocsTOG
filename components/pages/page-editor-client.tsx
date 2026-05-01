@@ -5,9 +5,17 @@ import { RichEditor } from "@/components/editor/rich-editor";
 import { Button } from "@/components/ui/button";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label } from "@/components/ui/input";
-import type { PageRecord, Profile } from "@/types";
+import type { InternalLinkTarget, PageRecord, Profile } from "@/types";
 
-export function PageEditorClient({ page, profile }: { page: PageRecord; profile: Profile }) {
+export function PageEditorClient({
+  page,
+  profile,
+  internalLinkTargets
+}: {
+  page: PageRecord;
+  profile: Profile;
+  internalLinkTargets: InternalLinkTarget[];
+}) {
   const readOnly = profile.role === "reader";
 
   return (
@@ -32,6 +40,8 @@ export function PageEditorClient({ page, profile }: { page: PageRecord; profile:
       <RichEditor
         value={page.content}
         readOnly={readOnly}
+        internalLinkTargets={internalLinkTargets}
+        currentTarget={{ type: "page", id: page.id }}
         onSave={(content) => updatePageContent(page.id, content)}
         collaboration={{
           id: page.id,

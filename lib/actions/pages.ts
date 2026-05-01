@@ -39,6 +39,60 @@ export async function createPage(formData: FormData) {
   redirect(`/pages/${data.id}`);
 }
 
+export async function createSubPage(parentPageId: string, title: string) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusee.");
+  }
+
+  const supabase = await createClient();
+  const { data: parent, error: parentError } = await supabase
+    .from("pages")
+    .select("id,icon,category")
+    .eq("id", parentPageId)
+    .maybeSingle();
+
+  if (parentError) {
+    throw new Error(parentError.message);
+  }
+
+  if (!parent) {
+    throw new Error("Page parente introuvable.");
+  }
+
+  const parsed = pageSchema.parse({
+    title,
+    icon: parent.icon,
+    category: parent.category
+  });
+
+  const { data, error } = await supabase
+    .from("pages")
+    .insert({
+      ...parsed,
+      parent_page_id: parent.id,
+      content: emptyDoc(),
+      created_by: profile.id,
+      updated_by: profile.id
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/pages");
+  revalidatePath(`/pages/${parent.id}`);
+
+  return { id: data.id as string, href: `/pages/${data.id}` };
+}
+
+export async function createSubPageFromForm(parentPageId: string, formData: FormData) {
+  const result = await createSubPage(parentPageId, formString(formData, "title"));
+  redirect(result.href);
+}
+
 export async function updatePageMeta(pageId: string, formData: FormData) {
   const profile = await requireProfile();
   if (!canWrite(profile.role)) {

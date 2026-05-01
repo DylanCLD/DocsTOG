@@ -123,6 +123,14 @@ textarea {
   line-height: 1.7;
 }
 
+.prose-editor a {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
 .prose-editor blockquote {
   border-left: 3px solid var(--accent);
   color: var(--muted);

@@ -46,6 +46,7 @@ export type WorkspaceSettings = {
 
 export type PageRecord = {
   id: string;
+  parent_page_id: string | null;
   title: string;
   icon: string;
   category: string;
@@ -77,6 +78,7 @@ export type Tag = {
 export type DocumentRecord = {
   id: string;
   manager_id: string;
+  parent_document_id: string | null;
   title: string;
   short_description: string | null;
   status: DocumentStatus;
@@ -89,6 +91,15 @@ export type DocumentRecord = {
   updated_at: string;
   users?: Pick<Profile, "id" | "email" | "full_name" | "avatar_url"> | null;
   document_tags?: Array<{ tags: Tag | null }>;
+};
+
+export type InternalLinkTarget = {
+  id: string;
+  type: "page" | "document";
+  title: string;
+  subtitle: string | null;
+  href: string;
+  parentId: string | null;
 };
 
 export type PlanningSession = {
