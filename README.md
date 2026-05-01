@@ -18,7 +18,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Le site sera disponible sur `http://localhost:3000`.
+Le site sera disponible sur `https://docs-tog.vercel.app`.
 
 ## Variables d’environnement
 
