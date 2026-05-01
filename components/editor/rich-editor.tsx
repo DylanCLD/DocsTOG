@@ -23,6 +23,7 @@ import Typography from "@tiptap/extension-typography";
 import Underline from "@tiptap/extension-underline";
 import Youtube from "@tiptap/extension-youtube";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
@@ -65,6 +66,7 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 type RealtimeTable = "pages" | "documents";
 type CurrentInternalTarget = { type: "page" | "document"; id: string };
 type InternalLinkTab = InternalLinkTarget["type"] | "create";
+type InternalLinkPickerMode = "all" | "pages";
 
 const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
@@ -120,6 +122,7 @@ export function RichEditor({
   const [internalLinkOpen, setInternalLinkOpen] = useState(false);
   const [internalLinkQuery, setInternalLinkQuery] = useState("");
   const [internalLinkTab, setInternalLinkTab] = useState<InternalLinkTab>("page");
+  const [internalLinkPickerMode, setInternalLinkPickerMode] = useState<InternalLinkPickerMode>("all");
   const [internalLinkTitle, setInternalLinkTitle] = useState("");
   const [internalLinkError, setInternalLinkError] = useState<string | null>(null);
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
@@ -354,18 +357,28 @@ export function RichEditor({
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
-  const openInternalLinkPicker = () => {
+  const captureInternalLinkSelection = () => {
     if (!editor) {
-      return;
+      return "";
     }
 
     const { from, to, empty } = editor.state.selection;
     const selectedText = empty ? "" : editor.state.doc.textBetween(from, to, " ").trim();
 
     internalLinkSelectionRef.current = { from, to, empty };
+    return selectedText;
+  };
+
+  const openInternalLinkPicker = (mode: InternalLinkPickerMode = "all") => {
+    if (!editor) {
+      return;
+    }
+
+    const selectedText = captureInternalLinkSelection();
     setInternalLinkQuery("");
     setInternalLinkError(null);
-    setInternalLinkTab(currentTarget?.type ?? "page");
+    setInternalLinkPickerMode(mode);
+    setInternalLinkTab(mode === "pages" ? "page" : currentTarget?.type ?? "page");
     setInternalLinkTitle(selectedText || (currentTarget?.type === "document" ? "Nouveau sous-document" : "Nouvelle sous-page"));
     setInternalLinkOpen(true);
   };
@@ -405,13 +418,13 @@ export function RichEditor({
     internalLinkSelectionRef.current = null;
   };
 
-  const createInternalChild = async () => {
+  const createInternalChild = async (titleOverride?: string) => {
     if (!currentTarget) {
       setInternalLinkError("Ouvre une page ou un document pour creer un enfant.");
       return;
     }
 
-    const title = internalLinkTitle.trim();
+    const title = (titleOverride ?? internalLinkTitle).trim();
     if (!title) {
       setInternalLinkError("Titre requis.");
       return;
@@ -433,9 +446,26 @@ export function RichEditor({
       router.refresh();
     } catch (error) {
       setInternalLinkError(error instanceof Error ? error.message : "Creation impossible.");
+      setInternalLinkPickerMode("all");
+      setInternalLinkTab("create");
+      setInternalLinkTitle(title);
+      setInternalLinkOpen(true);
     } finally {
       setCreatingInternalLink(false);
     }
+  };
+
+  const createInternalChildFromSelection = async () => {
+    if (!editor || creatingInternalLink) {
+      return;
+    }
+
+    const selectedText = captureInternalLinkSelection();
+    if (!selectedText) {
+      return;
+    }
+
+    await createInternalChild(selectedText);
   };
 
   const addImageUrl = () => {
@@ -584,7 +614,7 @@ export function RichEditor({
         <ToolbarButton label="Lien" disabled={toolbarDisabled} active={editor.isActive("link")} onClick={addLink}>
           <LinkIcon className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Lien interne" disabled={toolbarDisabled} active={isInternalLinkActive} onClick={openInternalLinkPicker}>
+        <ToolbarButton label="Lien interne" disabled={toolbarDisabled} active={isInternalLinkActive} onClick={() => openInternalLinkPicker()}>
           <FileSymlink className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton label="Image par URL" disabled={toolbarDisabled} onClick={addImageUrl}>
@@ -644,6 +674,36 @@ export function RichEditor({
         </button>
       </div>
 
+      {!readOnly && currentTarget && (
+        <BubbleMenu
+          editor={editor}
+          updateDelay={80}
+          shouldShow={({ editor: menuEditor }) => {
+            const { from, to, empty } = menuEditor.state.selection;
+            return !empty && menuEditor.state.doc.textBetween(from, to, " ").trim().length > 0;
+          }}
+          className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-2xl shadow-black/35"
+        >
+          <button
+            type="button"
+            disabled={creatingInternalLink}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void createInternalChildFromSelection()}
+            className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface-elevated)] disabled:opacity-50"
+          >
+            {creatingInternalLink ? "Creation..." : "Creer une sous-page ?"}
+          </button>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => openInternalLinkPicker("pages")}
+            className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+          >
+            Relier a une page
+          </button>
+        </BubbleMenu>
+      )}
+
       {internalLinkOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-2xl overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-2xl shadow-black/40">
@@ -666,32 +726,32 @@ export function RichEditor({
             </div>
 
             <div className="space-y-4 p-4">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setInternalLinkTab("page")}
-                  className={cn(
-                    "h-9 rounded-lg border px-3 text-sm font-medium transition",
-                    internalLinkTab === "page"
-                      ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
-                      : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
-                  )}
-                >
-                  Pages
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInternalLinkTab("document")}
-                  className={cn(
-                    "h-9 rounded-lg border px-3 text-sm font-medium transition",
-                    internalLinkTab === "document"
-                      ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
-                      : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
-                  )}
-                >
-                  Documents
-                </button>
-                {currentTarget && (
+              {internalLinkPickerMode === "all" ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInternalLinkTab("page")}
+                    className={cn(
+                      "h-9 rounded-lg border px-3 text-sm font-medium transition",
+                      internalLinkTab === "page"
+                        ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
+                        : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+                    )}
+                  >
+                    Pages
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInternalLinkTab("document")}
+                    className={cn(
+                      "h-9 rounded-lg border px-3 text-sm font-medium transition",
+                      internalLinkTab === "document"
+                        ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
+                        : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+                    )}
+                  >
+                    Documents
+                  </button>
                   <button
                     type="button"
                     onClick={() => setInternalLinkTab("create")}
@@ -704,8 +764,10 @@ export function RichEditor({
                   >
                     Creer {childLabel}
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--muted)]">Choisis la page a relier au texte selectionne.</p>
+              )}
 
               {internalLinkTab === "create" ? (
                 <div className="space-y-3">
@@ -721,7 +783,7 @@ export function RichEditor({
                   />
                   <button
                     type="button"
-                    onClick={createInternalChild}
+                    onClick={() => void createInternalChild()}
                     disabled={creatingInternalLink}
                     className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 text-sm font-medium text-[#07110f] transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
                   >

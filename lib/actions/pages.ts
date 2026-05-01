@@ -7,6 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { formString, pageSchema } from "@/lib/validation";
 
+type SupabaseActionError = {
+  code?: string;
+  message?: string;
+};
+
 export async function createPage(formData: FormData) {
   const profile = await requireProfile();
   if (!canWrite(profile.role)) {
@@ -66,26 +71,55 @@ export async function createSubPage(parentPageId: string, title: string) {
     category: parent.category
   });
 
-  const { data, error } = await supabase
+  const insertData = {
+    ...parsed,
+    parent_page_id: parent.id,
+    content: emptyDoc(),
+    created_by: profile.id,
+    updated_by: profile.id
+  };
+
+  let { data, error } = await supabase
     .from("pages")
-    .insert({
-      ...parsed,
-      parent_page_id: parent.id,
-      content: emptyDoc(),
-      created_by: profile.id,
-      updated_by: profile.id
-    })
+    .insert(insertData)
     .select("id")
     .single();
 
+  if (error && isMissingParentColumnError(error, "parent_page_id")) {
+    const fallbackInsertData = {
+      title: insertData.title,
+      icon: insertData.icon,
+      category: insertData.category,
+      content: insertData.content,
+      created_by: insertData.created_by,
+      updated_by: insertData.updated_by
+    };
+    const fallbackResult = await supabase.from("pages").insert(fallbackInsertData).select("id").single();
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Creation de la sous-page impossible.");
   }
 
   revalidatePath("/pages");
   revalidatePath(`/pages/${parent.id}`);
 
   return { id: data.id as string, href: `/pages/${data.id}` };
+}
+
+function isMissingParentColumnError(error: SupabaseActionError, columnName: string) {
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    (message.includes(columnName.toLowerCase()) && (message.includes("column") || message.includes("schema cache")))
+  );
 }
 
 export async function createSubPageFromForm(parentPageId: string, formData: FormData) {

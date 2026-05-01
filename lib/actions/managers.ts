@@ -8,6 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { documentSchema, formString, managerSchema, nullableString } from "@/lib/validation";
 
+type SupabaseActionError = {
+  code?: string;
+  message?: string;
+};
+
 export async function createManager(formData: FormData) {
   const profile = await requireProfile();
   if (!canWrite(profile.role)) {
@@ -130,24 +135,46 @@ export async function createSubDocument(parentDocumentId: string, title: string)
     throw new Error("Document parent introuvable.");
   }
 
-  const { data, error } = await supabase
+  const insertData = {
+    manager_id: parent.manager_id,
+    parent_document_id: parent.id,
+    title: parsed.title,
+    short_description: null,
+    status: parsed.status,
+    priority: parsed.priority,
+    content: emptyDoc(),
+    created_by: profile.id,
+    updated_by: profile.id
+  };
+
+  let { data, error } = await supabase
     .from("documents")
-    .insert({
-      manager_id: parent.manager_id,
-      parent_document_id: parent.id,
-      title: parsed.title,
-      short_description: null,
-      status: parsed.status,
-      priority: parsed.priority,
-      content: emptyDoc(),
-      created_by: profile.id,
-      updated_by: profile.id
-    })
+    .insert(insertData)
     .select("id")
     .single();
 
+  if (error && isMissingParentColumnError(error, "parent_document_id")) {
+    const fallbackInsertData = {
+      manager_id: insertData.manager_id,
+      title: insertData.title,
+      short_description: insertData.short_description,
+      status: insertData.status,
+      priority: insertData.priority,
+      content: insertData.content,
+      created_by: insertData.created_by,
+      updated_by: insertData.updated_by
+    };
+    const fallbackResult = await supabase.from("documents").insert(fallbackInsertData).select("id").single();
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Creation du sous-document impossible.");
   }
 
   revalidatePath("/managers");
@@ -155,6 +182,15 @@ export async function createSubDocument(parentDocumentId: string, title: string)
   revalidatePath(`/documents/${parent.id}`);
 
   return { id: data.id as string, href: `/documents/${data.id}` };
+}
+
+function isMissingParentColumnError(error: SupabaseActionError, columnName: string) {
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    (message.includes(columnName.toLowerCase()) && (message.includes("column") || message.includes("schema cache")))
+  );
 }
 
 export async function createSubDocumentFromForm(parentDocumentId: string, formData: FormData) {
