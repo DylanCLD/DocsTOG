@@ -20,7 +20,7 @@ export default async function PagesPage() {
   let pages = (pagesResult.data ?? []) as PageRecord[];
 
   if (pagesResult.error && isMissingSortOrderColumn(pagesResult.error)) {
-    const fallbackPagesResult = await supabase.from("pages").select("*").order("updated_at", { ascending: false });
+    const fallbackPagesResult = await supabase.from("pages").select("*").order("created_at", { ascending: true });
     pages = (fallbackPagesResult.data ?? []) as PageRecord[];
   }
 

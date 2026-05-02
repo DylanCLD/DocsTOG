@@ -38,7 +38,7 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
       .from("documents")
       .select("*, users:responsible_id(id,email,full_name,avatar_url), document_tags(tags(id,name,color,created_at))")
       .eq("manager_id", id)
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     documents = (fallbackDocumentsResult.data ?? []) as DocumentRecord[];
     documentsCanReorder = false;

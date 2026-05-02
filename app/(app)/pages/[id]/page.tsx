@@ -39,7 +39,7 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
   let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
 
   if (allPagesResult.error && isMissingSortOrderColumn(allPagesResult.error)) {
-    const fallbackPagesResult = await supabase.from("pages").select("*").order("updated_at", { ascending: false });
+    const fallbackPagesResult = await supabase.from("pages").select("*").order("created_at", { ascending: true });
     pages = (fallbackPagesResult.data ?? []) as PageRecord[];
   }
 
@@ -47,7 +47,7 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
     const fallbackDocumentsResult = await supabase
       .from("documents")
       .select("id,parent_document_id,title,short_description,document_managers(name)")
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     allDocuments = (fallbackDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
   }

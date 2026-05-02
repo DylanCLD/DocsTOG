@@ -42,7 +42,6 @@ import {
   Minus,
   PanelTop,
   Pilcrow,
-  Plus,
   Quote,
   Redo2,
   Save,
@@ -65,7 +64,7 @@ import type { InternalLinkTarget, Profile } from "@/types";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type RealtimeTable = "pages" | "documents";
 type CurrentInternalTarget = { type: "page" | "document"; id: string };
-type InternalLinkTab = InternalLinkTarget["type"] | "create";
+type InternalLinkTab = InternalLinkTarget["type"];
 type InternalLinkPickerMode = "all" | "pages";
 
 const buttonClass =
@@ -125,7 +124,6 @@ export function RichEditor({
   const [internalLinkQuery, setInternalLinkQuery] = useState("");
   const [internalLinkTab, setInternalLinkTab] = useState<InternalLinkTab>("page");
   const [internalLinkPickerMode, setInternalLinkPickerMode] = useState<InternalLinkPickerMode>("all");
-  const [internalLinkTitle, setInternalLinkTitle] = useState("");
   const [internalLinkError, setInternalLinkError] = useState<string | null>(null);
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
   const seededRef = useRef(false);
@@ -432,12 +430,11 @@ export function RichEditor({
       return;
     }
 
-    const selectedText = captureInternalLinkSelection();
+    captureInternalLinkSelection();
     setInternalLinkQuery("");
     setInternalLinkError(null);
     setInternalLinkPickerMode(mode);
     setInternalLinkTab(mode === "pages" ? "page" : currentTarget?.type ?? "page");
-    setInternalLinkTitle(selectedText || (currentTarget?.type === "document" ? "Nouveau sous-document" : "Nouvelle sous-page"));
     setInternalLinkOpen(true);
   };
 
@@ -476,15 +473,15 @@ export function RichEditor({
     internalLinkSelectionRef.current = null;
   };
 
-  const createInternalChild = async (titleOverride?: string) => {
+  const createInternalChild = async (title: string) => {
     if (!currentTarget) {
       setInternalLinkError("Ouvre une page ou un document pour creer un enfant.");
       return;
     }
 
-    const title = (titleOverride ?? internalLinkTitle).trim();
-    if (!title) {
-      setInternalLinkError("Titre requis.");
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setInternalLinkError("Selectionne un texte pour creer un enfant.");
       return;
     }
 
@@ -494,20 +491,18 @@ export function RichEditor({
     try {
       const result =
         currentTarget.type === "page"
-          ? await createSubPage(currentTarget.id, title)
-          : await createSubDocument(currentTarget.id, title);
+          ? await createSubPage(currentTarget.id, trimmedTitle)
+          : await createSubDocument(currentTarget.id, trimmedTitle);
 
-      applyInternalLink(result.href, title);
+      applyInternalLink(result.href, trimmedTitle);
       if (editor) {
         await saveContent(editor.getJSON());
       }
       router.refresh();
     } catch (error) {
-      setInternalLinkError(error instanceof Error ? error.message : "Creation impossible.");
-      setInternalLinkPickerMode("all");
-      setInternalLinkTab("create");
-      setInternalLinkTitle(title);
-      setInternalLinkOpen(true);
+      const message = error instanceof Error ? error.message : "Creation impossible.";
+      setInternalLinkError(message);
+      window.alert(message);
     } finally {
       setCreatingInternalLink(false);
     }
@@ -750,7 +745,7 @@ export function RichEditor({
             onClick={() => void createInternalChildFromSelection()}
             className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface-elevated)] disabled:opacity-50"
           >
-            {creatingInternalLink ? "Creation..." : `Creer un ${childLabel}`}
+            {creatingInternalLink ? "Creation..." : `Creer ${childLabel}`}
           </button>
           <button
             type="button"
@@ -811,75 +806,39 @@ export function RichEditor({
                   >
                     Documents
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setInternalLinkTab("create")}
-                    className={cn(
-                      "h-9 rounded-lg border px-3 text-sm font-medium transition",
-                      internalLinkTab === "create"
-                        ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
-                        : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
-                    )}
-                  >
-                    Creer {childLabel}
-                  </button>
                 </div>
               ) : (
                 <p className="text-sm text-[var(--muted)]">Choisis la page a relier au texte selectionne.</p>
               )}
 
-              {internalLinkTab === "create" ? (
-                <div className="space-y-3">
-                  <label className="block text-xs font-medium uppercase tracking-wide text-[var(--muted)]" htmlFor="internal-link-title">
-                    Titre
-                  </label>
+              <div className="space-y-3">
+                <div className="relative">
                   <input
-                    id="internal-link-title"
-                    value={internalLinkTitle}
-                    onChange={(event) => setInternalLinkTitle(event.target.value)}
-                    className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)]"
-                    placeholder={`Titre du ${childLabel}`}
+                    value={internalLinkQuery}
+                    onChange={(event) => setInternalLinkQuery(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-9 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+                    placeholder="Rechercher..."
                   />
-                  <button
-                    type="button"
-                    onClick={() => void createInternalChild()}
-                    disabled={creatingInternalLink}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 text-sm font-medium text-[#07110f] transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {creatingInternalLink ? "Creation..." : "Creer et lier"}
-                  </button>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="relative">
-                    <input
-                      value={internalLinkQuery}
-                      onChange={(event) => setInternalLinkQuery(event.target.value)}
-                      className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-9 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
-                      placeholder="Rechercher..."
-                    />
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
-                  </div>
-                  <div className="max-h-80 overflow-y-auto rounded-lg border border-[var(--border)]">
-                    {filteredInternalTargets.length === 0 ? (
-                      <p className="px-3 py-6 text-center text-sm text-[var(--muted)]">Aucune cible trouvee.</p>
-                    ) : (
-                      filteredInternalTargets.map((target) => (
-                        <button
-                          key={`${target.type}-${target.id}`}
-                          type="button"
-                          onClick={() => applyInternalLink(target.href, target.title)}
-                          className="block w-full border-b border-[var(--border)] px-3 py-2 text-left transition last:border-b-0 hover:bg-[var(--surface-elevated)]"
-                        >
-                          <span className="block truncate text-sm font-medium">{target.title}</span>
-                          {target.subtitle && <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">{target.subtitle}</span>}
-                        </button>
-                      ))
-                    )}
-                  </div>
+                <div className="max-h-80 overflow-y-auto rounded-lg border border-[var(--border)]">
+                  {filteredInternalTargets.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-sm text-[var(--muted)]">Aucune cible trouvee.</p>
+                  ) : (
+                    filteredInternalTargets.map((target) => (
+                      <button
+                        key={`${target.type}-${target.id}`}
+                        type="button"
+                        onClick={() => applyInternalLink(target.href, target.title)}
+                        className="block w-full border-b border-[var(--border)] px-3 py-2 text-left transition last:border-b-0 hover:bg-[var(--surface-elevated)]"
+                      >
+                        <span className="block truncate text-sm font-medium">{target.title}</span>
+                        {target.subtitle && <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">{target.subtitle}</span>}
+                      </button>
+                    ))
+                  )}
                 </div>
-              )}
+              </div>
 
               {internalLinkError && <p className="text-sm text-red-300">{internalLinkError}</p>}
             </div>

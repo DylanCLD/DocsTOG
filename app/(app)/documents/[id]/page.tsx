@@ -64,7 +64,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
     const fallbackPagesResult = await supabase
       .from("pages")
       .select("id,parent_page_id,title,category")
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (!fallbackPagesResult.error) {
       allPages = fallbackPagesResult.data ?? [];
@@ -72,7 +72,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
       const flatPagesResult = await supabase
         .from("pages")
         .select("id,title,category")
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: true });
 
       allPages = (flatPagesResult.data ?? []).map((page) => ({
         ...page,
@@ -85,7 +85,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
     const fallbackDocumentsResult = await supabase
       .from("documents")
       .select("id,parent_document_id,title,short_description,document_managers(name)")
-      .order("updated_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (!fallbackDocumentsResult.error) {
       allDocuments = (fallbackDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
@@ -93,7 +93,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
       const flatDocumentsResult = await supabase
         .from("documents")
         .select("id,title,short_description,document_managers(name)")
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: true });
 
       allDocuments = (flatDocumentsResult.data ?? []).map((document) => ({
         ...document,
@@ -178,7 +178,7 @@ async function fetchNavigationDocuments(
     .from("documents")
     .select("id,manager_id,parent_document_id,title,short_description,created_at")
     .eq("manager_id", managerId)
-    .order("updated_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   if (!hierarchyFallbackResult.error) {
     return {
@@ -191,7 +191,7 @@ async function fetchNavigationDocuments(
     .from("documents")
     .select("id,manager_id,title,short_description,created_at")
     .eq("manager_id", managerId)
-    .order("updated_at", { ascending: false });
+    .order("created_at", { ascending: true });
 
   if (flatFallbackResult.error) {
     return {
