@@ -18,6 +18,11 @@ type NavigationDocumentRow = DocumentTreeRecord & {
   parent_document_id?: string | null;
 };
 
+type NavigationDocumentsResult = {
+  documents: DocumentTreeRecord[];
+  canReorder: boolean;
+};
+
 export default async function DocumentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profile = await requireProfile();
@@ -51,7 +56,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   ]);
 
   const users = (usersResult.data ?? []) as Profile[];
-  const navigationDocuments = siblingDocumentsResult;
+  const navigationDocuments = siblingDocumentsResult.documents;
   let allPages = allPagesResult.data ?? [];
   let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
 
@@ -61,7 +66,19 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
       .select("id,parent_page_id,title,category")
       .order("updated_at", { ascending: false });
 
-    allPages = fallbackPagesResult.data ?? [];
+    if (!fallbackPagesResult.error) {
+      allPages = fallbackPagesResult.data ?? [];
+    } else {
+      const flatPagesResult = await supabase
+        .from("pages")
+        .select("id,title,category")
+        .order("updated_at", { ascending: false });
+
+      allPages = (flatPagesResult.data ?? []).map((page) => ({
+        ...page,
+        parent_page_id: null
+      }));
+    }
   }
 
   if (allDocumentsResult.error) {
@@ -70,11 +87,24 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
       .select("id,parent_document_id,title,short_description,document_managers(name)")
       .order("updated_at", { ascending: false });
 
-    allDocuments = (fallbackDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
+    if (!fallbackDocumentsResult.error) {
+      allDocuments = (fallbackDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
+    } else {
+      const flatDocumentsResult = await supabase
+        .from("documents")
+        .select("id,title,short_description,document_managers(name)")
+        .order("updated_at", { ascending: false });
+
+      allDocuments = (flatDocumentsResult.data ?? []).map((document) => ({
+        ...document,
+        parent_document_id: null
+      })) as Parameters<typeof buildInternalLinkTargets>[1];
+    }
   }
 
   const siblings = mergeCurrentDocumentIntoNavigation(document, navigationDocuments);
   const writer = canWrite(profile.role);
+  const canReorderDocuments = writer && siblingDocumentsResult.canReorder;
   const internalLinkTargets = buildInternalLinkTargets(allPages, allDocuments);
 
   return (
@@ -98,7 +128,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
           documents={siblings}
           activeDocumentId={document.id}
           compact
-          canReorder={writer}
+          canReorder={canReorderDocuments}
           managerId={document.manager_id}
           onReorder={updateDocumentOrder}
         />
@@ -125,7 +155,10 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   );
 }
 
-async function fetchNavigationDocuments(supabase: Awaited<ReturnType<typeof createClient>>, managerId: string): Promise<DocumentTreeRecord[]> {
+async function fetchNavigationDocuments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  managerId: string
+): Promise<NavigationDocumentsResult> {
   const orderedResult = await supabase
     .from("documents")
     .select("id,manager_id,parent_document_id,title,short_description,sort_order,created_at")
@@ -134,20 +167,42 @@ async function fetchNavigationDocuments(supabase: Awaited<ReturnType<typeof crea
     .order("created_at", { ascending: true });
 
   if (!orderedResult.error) {
-    return normalizeNavigationDocuments((orderedResult.data ?? []) as NavigationDocumentRow[]);
+    return {
+      documents: normalizeNavigationDocuments((orderedResult.data ?? []) as NavigationDocumentRow[]),
+      canReorder: true
+    };
   }
 
-  const fallbackResult = await supabase
+  const hierarchyFallbackResult = await supabase
     .from("documents")
     .select("id,manager_id,parent_document_id,title,short_description,created_at")
     .eq("manager_id", managerId)
     .order("updated_at", { ascending: false });
 
-  if (fallbackResult.error) {
-    return [];
+  if (!hierarchyFallbackResult.error) {
+    return {
+      documents: normalizeNavigationDocuments((hierarchyFallbackResult.data ?? []) as NavigationDocumentRow[]),
+      canReorder: false
+    };
   }
 
-  return normalizeNavigationDocuments((fallbackResult.data ?? []) as NavigationDocumentRow[]);
+  const flatFallbackResult = await supabase
+    .from("documents")
+    .select("id,manager_id,title,short_description,created_at")
+    .eq("manager_id", managerId)
+    .order("updated_at", { ascending: false });
+
+  if (flatFallbackResult.error) {
+    return {
+      documents: [],
+      canReorder: false
+    };
+  }
+
+  return {
+    documents: normalizeFlatNavigationDocuments((flatFallbackResult.data ?? []) as Array<Omit<NavigationDocumentRow, "parent_document_id">>),
+    canReorder: false
+  };
 }
 
 function normalizeNavigationDocuments(documents: NavigationDocumentRow[]): DocumentTreeRecord[] {
@@ -155,6 +210,14 @@ function normalizeNavigationDocuments(documents: NavigationDocumentRow[]): Docum
     ...document,
     parent_document_id: document.parent_document_id ?? null,
     sort_order: typeof document.sort_order === "number" ? document.sort_order : index
+  }));
+}
+
+function normalizeFlatNavigationDocuments(documents: Array<Omit<NavigationDocumentRow, "parent_document_id">>): DocumentTreeRecord[] {
+  return documents.map((document, index) => ({
+    ...document,
+    parent_document_id: null,
+    sort_order: index
   }));
 }
 

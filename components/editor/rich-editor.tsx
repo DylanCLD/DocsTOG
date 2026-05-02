@@ -120,7 +120,7 @@ export function RichEditor({
 }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [uploading, setUploading] = useState(false);
-  const [activeUsers, setActiveUsers] = useState<Array<Record<string, unknown>>>([]);
+  const [activeUsersVersion, setActiveUsersVersion] = useState(0);
   const [internalLinkOpen, setInternalLinkOpen] = useState(false);
   const [internalLinkQuery, setInternalLinkQuery] = useState("");
   const [internalLinkTab, setInternalLinkTab] = useState<InternalLinkTab>("page");
@@ -171,6 +171,20 @@ export function RichEditor({
     return { doc, provider };
   }, [collaborationId, collaborationTable]);
 
+  const activeUsers = useMemo(() => {
+    void activeUsersVersion;
+
+    if (!collaborationState || !collaboration) {
+      return [];
+    }
+
+    return Array.from(collaborationState.provider.awareness.states.values())
+      .map((state) => state.user)
+      .filter((user): user is Record<string, unknown> => {
+        return Boolean(user && typeof user === "object" && user.id !== collaboration.profile.id);
+      });
+  }, [activeUsersVersion, collaboration, collaborationState]);
+
   useEffect(
     () => () => {
       collaborationState?.provider.destroy();
@@ -178,6 +192,19 @@ export function RichEditor({
     },
     [collaborationState]
   );
+
+  useEffect(() => {
+    if (!collaborationState) {
+      return;
+    }
+
+    const updateUsers = () => setActiveUsersVersion((version) => version + 1);
+    collaborationState.provider.awareness.on("update", updateUsers);
+
+    return () => {
+      collaborationState.provider.awareness.off("update", updateUsers);
+    };
+  }, [collaborationState]);
 
   const saveContent = useCallback(
     async (content: JSONContent) => {
@@ -205,6 +232,8 @@ export function RichEditor({
     extensions: [
       StarterKit.configure({
         undoRedo: collaborationState ? false : undefined,
+        link: false,
+        underline: false,
         heading: {
           levels: [1, 2, 3]
         }
@@ -220,10 +249,6 @@ export function RichEditor({
                 id: collaboration.profile.id,
                 name: userName(collaboration.profile),
                 color: userColor(collaboration.profile.id)
-              },
-              onUpdate: (users) => {
-                setActiveUsers(users.filter((user) => user.id !== collaboration.profile.id));
-                return null;
               },
               render: (user) => {
                 const cursor = document.createElement("span");

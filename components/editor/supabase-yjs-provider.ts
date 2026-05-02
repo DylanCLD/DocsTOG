@@ -36,6 +36,7 @@ export class SupabaseYjsProvider {
   private channel: RealtimeChannel;
   private doc: Y.Doc;
   private origin = {};
+  private subscribed = false;
 
   constructor({
     doc,
@@ -71,26 +72,23 @@ export class SupabaseYjsProvider {
         }
       })
       .on("broadcast", { event: "sync-request" }, () => {
-        void this.channel.send({
-          type: "broadcast",
-          event: "yjs-update",
-          payload: {
-            update: uint8ToBase64(Y.encodeStateAsUpdate(this.doc))
-          }
+        this.sendBroadcast("yjs-update", {
+          update: uint8ToBase64(Y.encodeStateAsUpdate(this.doc))
         });
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          void this.channel.send({
-            type: "broadcast",
-            event: "sync-request",
-            payload: {}
-          });
+          this.subscribed = true;
+          this.sendBroadcast("sync-request", {});
+          return;
         }
+
+        this.subscribed = false;
       });
   }
 
   destroy() {
+    this.subscribed = false;
     this.doc.off("update", this.handleLocalDocumentUpdate);
     this.awareness.off("update", this.handleLocalAwarenessUpdate);
     this.awareness.destroy();
@@ -102,12 +100,8 @@ export class SupabaseYjsProvider {
       return;
     }
 
-    void this.channel.send({
-      type: "broadcast",
-      event: "yjs-update",
-      payload: {
-        update: uint8ToBase64(update)
-      }
+    this.sendBroadcast("yjs-update", {
+      update: uint8ToBase64(update)
     });
   };
 
@@ -125,12 +119,21 @@ export class SupabaseYjsProvider {
       return;
     }
 
-    void this.channel.send({
-      type: "broadcast",
-      event: "awareness-update",
-      payload: {
-        update: uint8ToBase64(encodeAwarenessUpdate(this.awareness, changedClients))
-      }
+    this.sendBroadcast("awareness-update", {
+      update: uint8ToBase64(encodeAwarenessUpdate(this.awareness, changedClients))
     });
   };
+
+  private sendBroadcast(event: string, payload: Record<string, unknown>) {
+    if (this.subscribed) {
+      void this.channel.send({
+        type: "broadcast",
+        event,
+        payload
+      });
+      return;
+    }
+
+    void this.channel.httpSend(event, payload);
+  }
 }
