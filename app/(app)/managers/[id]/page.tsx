@@ -30,7 +30,18 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
   }
 
   const manager = managerResult.data as DocumentManager;
-  const documents = (documentsResult.data ?? []) as DocumentRecord[];
+  let documents = (documentsResult.data ?? []) as DocumentRecord[];
+
+  if (documentsResult.error && isMissingSortOrderColumn(documentsResult.error)) {
+    const fallbackDocumentsResult = await supabase
+      .from("documents")
+      .select("*, users:responsible_id(id,email,full_name,avatar_url), document_tags(tags(id,name,color,created_at))")
+      .eq("manager_id", id)
+      .order("updated_at", { ascending: false });
+
+    documents = (fallbackDocumentsResult.data ?? []) as DocumentRecord[];
+  }
+
   const users = (usersResult.data ?? []) as Profile[];
 
   return (
@@ -64,4 +75,9 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
       />
     </div>
   );
+}
+
+function isMissingSortOrderColumn(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || error.code === "PGRST204" || (message.includes("sort_order") && message.includes("column"));
 }

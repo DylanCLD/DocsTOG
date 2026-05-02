@@ -57,24 +57,40 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
 
   const users = (usersResult.data ?? []) as Profile[];
   let navigationDocuments = (siblingDocumentsResult.data ?? []) as unknown as NavigationDocument[];
+  let allPages = allPagesResult.data ?? [];
+  let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
 
-  if (siblingDocumentsResult.error) {
+  if (siblingDocumentsResult.error && isMissingSortOrderColumn(siblingDocumentsResult.error)) {
     const fallbackDocumentsResult = await supabase
       .from("documents")
-      .select("id,manager_id,title,short_description,sort_order,status,priority,responsible_id,content,created_by,updated_by,created_at,updated_at,document_tags(tags(id,name,color,created_at))")
+      .select("id,manager_id,parent_document_id,title,short_description,status,priority,responsible_id,content,created_by,updated_by,created_at,updated_at,document_tags(tags(id,name,color,created_at))")
       .eq("manager_id", document.manager_id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+      .order("updated_at", { ascending: false });
 
     navigationDocuments = (fallbackDocumentsResult.data ?? []) as unknown as NavigationDocument[];
   }
 
+  if (allPagesResult.error && isMissingSortOrderColumn(allPagesResult.error)) {
+    const fallbackPagesResult = await supabase
+      .from("pages")
+      .select("id,parent_page_id,title,category")
+      .order("updated_at", { ascending: false });
+
+    allPages = fallbackPagesResult.data ?? [];
+  }
+
+  if (allDocumentsResult.error && isMissingSortOrderColumn(allDocumentsResult.error)) {
+    const fallbackDocumentsResult = await supabase
+      .from("documents")
+      .select("id,parent_document_id,title,short_description,document_managers(name)")
+      .order("updated_at", { ascending: false });
+
+    allDocuments = (fallbackDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
+  }
+
   const siblings = mergeCurrentDocumentIntoNavigation(document, navigationDocuments);
   const writer = canWrite(profile.role);
-  const internalLinkTargets = buildInternalLinkTargets(
-    allPagesResult.data ?? [],
-    (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1]
-  );
+  const internalLinkTargets = buildInternalLinkTargets(allPages, allDocuments);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
@@ -135,4 +151,9 @@ function mergeCurrentDocumentIntoNavigation(current: DocumentWithManager, docume
   }
 
   return [{ ...current, parent_document_id: current.parent_document_id ?? null }, ...normalized];
+}
+
+function isMissingSortOrderColumn(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || error.code === "PGRST204" || (message.includes("sort_order") && message.includes("column"));
 }

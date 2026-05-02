@@ -78,7 +78,7 @@ export async function createDocument(managerId: string, formData: FormData) {
 
   const supabase = await createClient();
   const sortOrder = await nextDocumentSortOrder(supabase, managerId, null);
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("documents")
     .insert({
       manager_id: managerId,
@@ -95,8 +95,33 @@ export async function createDocument(managerId: string, formData: FormData) {
     .select("id")
     .single();
 
+  if (error && isMissingParentColumnError(error, "sort_order")) {
+    const fallbackResult = await supabase
+      .from("documents")
+      .insert({
+        manager_id: managerId,
+        title: parsed.title,
+        short_description: parsed.short_description,
+        status: parsed.status,
+        priority: parsed.priority,
+        responsible_id: parsed.responsible_id,
+        content: emptyDoc(),
+        created_by: profile.id,
+        updated_by: profile.id
+      })
+      .select("id")
+      .single();
+
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Creation du document impossible.");
   }
 
   await syncTagsForTarget({
@@ -157,18 +182,29 @@ export async function createSubDocument(parentDocumentId: string, title: string)
     .select("id")
     .single();
 
-  if (error && isMissingParentColumnError(error, "parent_document_id")) {
-    const fallbackInsertData = {
-      manager_id: insertData.manager_id,
-      title: insertData.title,
-      short_description: insertData.short_description,
-      sort_order: insertData.sort_order,
-      status: insertData.status,
-      priority: insertData.priority,
-      content: insertData.content,
-      created_by: insertData.created_by,
-      updated_by: insertData.updated_by
-    };
+  if (error && (isMissingParentColumnError(error, "parent_document_id") || isMissingParentColumnError(error, "sort_order"))) {
+    const fallbackInsertData = isMissingParentColumnError(error, "parent_document_id")
+      ? {
+          manager_id: insertData.manager_id,
+          title: insertData.title,
+          short_description: insertData.short_description,
+          status: insertData.status,
+          priority: insertData.priority,
+          content: insertData.content,
+          created_by: insertData.created_by,
+          updated_by: insertData.updated_by
+        }
+      : {
+          manager_id: insertData.manager_id,
+          parent_document_id: insertData.parent_document_id,
+          title: insertData.title,
+          short_description: insertData.short_description,
+          status: insertData.status,
+          priority: insertData.priority,
+          content: insertData.content,
+          created_by: insertData.created_by,
+          updated_by: insertData.updated_by
+        };
     const fallbackResult = await supabase.from("documents").insert(fallbackInsertData).select("id").single();
     data = fallbackResult.data;
     error = fallbackResult.error;

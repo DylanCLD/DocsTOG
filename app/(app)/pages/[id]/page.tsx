@@ -35,12 +35,25 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true })
   ]);
-  const pages = (allPagesResult.data ?? []) as PageRecord[];
+  let pages = (allPagesResult.data ?? []) as PageRecord[];
+  let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
+
+  if (allPagesResult.error && isMissingSortOrderColumn(allPagesResult.error)) {
+    const fallbackPagesResult = await supabase.from("pages").select("*").order("updated_at", { ascending: false });
+    pages = (fallbackPagesResult.data ?? []) as PageRecord[];
+  }
+
+  if (allDocumentsResult.error && isMissingSortOrderColumn(allDocumentsResult.error)) {
+    const fallbackDocumentsResult = await supabase
+      .from("documents")
+      .select("id,parent_document_id,title,short_description,document_managers(name)")
+      .order("updated_at", { ascending: false });
+
+    allDocuments = (fallbackDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
+  }
+
   const writer = canWrite(profile.role);
-  const internalLinkTargets = buildInternalLinkTargets(
-    pages,
-    (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1]
-  );
+  const internalLinkTargets = buildInternalLinkTargets(pages, allDocuments);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
@@ -78,4 +91,9 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
       </main>
     </div>
   );
+}
+
+function isMissingSortOrderColumn(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || error.code === "PGRST204" || (message.includes("sort_order") && message.includes("column"));
 }

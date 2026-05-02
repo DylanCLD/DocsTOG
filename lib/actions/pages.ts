@@ -26,7 +26,7 @@ export async function createPage(formData: FormData) {
 
   const supabase = await createClient();
   const sortOrder = await nextPageSortOrder(supabase, null);
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("pages")
     .insert({
       ...parsed,
@@ -38,8 +38,28 @@ export async function createPage(formData: FormData) {
     .select("id")
     .single();
 
+  if (error && isMissingParentColumnError(error, "sort_order")) {
+    const fallbackResult = await supabase
+      .from("pages")
+      .insert({
+        ...parsed,
+        content: emptyDoc(),
+        created_by: profile.id,
+        updated_by: profile.id
+      })
+      .select("id")
+      .single();
+
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
+
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Creation de la page impossible.");
   }
 
   revalidatePath("/pages");
@@ -89,16 +109,25 @@ export async function createSubPage(parentPageId: string, title: string) {
     .select("id")
     .single();
 
-  if (error && isMissingParentColumnError(error, "parent_page_id")) {
-    const fallbackInsertData = {
-      title: insertData.title,
-      icon: insertData.icon,
-      category: insertData.category,
-      sort_order: insertData.sort_order,
-      content: insertData.content,
-      created_by: insertData.created_by,
-      updated_by: insertData.updated_by
-    };
+  if (error && (isMissingParentColumnError(error, "parent_page_id") || isMissingParentColumnError(error, "sort_order"))) {
+    const fallbackInsertData = isMissingParentColumnError(error, "parent_page_id")
+      ? {
+          title: insertData.title,
+          icon: insertData.icon,
+          category: insertData.category,
+          content: insertData.content,
+          created_by: insertData.created_by,
+          updated_by: insertData.updated_by
+        }
+      : {
+          title: insertData.title,
+          icon: insertData.icon,
+          category: insertData.category,
+          parent_page_id: insertData.parent_page_id,
+          content: insertData.content,
+          created_by: insertData.created_by,
+          updated_by: insertData.updated_by
+        };
     const fallbackResult = await supabase.from("pages").insert(fallbackInsertData).select("id").single();
     data = fallbackResult.data;
     error = fallbackResult.error;

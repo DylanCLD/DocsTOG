@@ -12,12 +12,18 @@ import type { PageRecord } from "@/types";
 export default async function PagesPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
-  const { data } = await supabase
+  const pagesResult = await supabase
     .from("pages")
     .select("*")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
-  const pages = (data ?? []) as PageRecord[];
+  let pages = (pagesResult.data ?? []) as PageRecord[];
+
+  if (pagesResult.error && isMissingSortOrderColumn(pagesResult.error)) {
+    const fallbackPagesResult = await supabase.from("pages").select("*").order("updated_at", { ascending: false });
+    pages = (fallbackPagesResult.data ?? []) as PageRecord[];
+  }
+
   const writer = canWrite(profile.role);
 
   return (
@@ -61,4 +67,9 @@ export default async function PagesPage() {
       )}
     </div>
   );
+}
+
+function isMissingSortOrderColumn(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || error.code === "PGRST204" || (message.includes("sort_order") && message.includes("column"));
 }
