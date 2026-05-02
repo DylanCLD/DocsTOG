@@ -750,10 +750,10 @@ export function RichEditor({
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => openInternalLinkPicker("pages")}
+            onClick={() => openInternalLinkPicker("all")}
             className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
           >
-            Relier a une page
+            Relier a une page/document
           </button>
         </BubbleMenu>
       )}
