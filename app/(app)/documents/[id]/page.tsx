@@ -183,7 +183,7 @@ async function fetchNavigationDocuments(
   if (!hierarchyFallbackResult.error) {
     return {
       documents: normalizeNavigationDocuments((hierarchyFallbackResult.data ?? []) as NavigationDocumentRow[]),
-      canReorder: false
+      canReorder: true
     };
   }
 
@@ -202,7 +202,7 @@ async function fetchNavigationDocuments(
 
   return {
     documents: normalizeFlatNavigationDocuments((flatFallbackResult.data ?? []) as Array<Omit<NavigationDocumentRow, "parent_document_id">>),
-    canReorder: false
+    canReorder: true
   };
 }
 

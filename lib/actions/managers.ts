@@ -311,6 +311,7 @@ export async function updateDocumentOrder(managerId: string, parentDocumentId: s
 
   revalidatePath("/managers");
   revalidatePath(`/managers/${managerId}`);
+  revalidatePath("/documents/[id]", "page");
 }
 
 export async function moveDocumentInTree(
@@ -390,7 +391,7 @@ export async function moveDocumentInTree(
 
   revalidatePath("/managers");
   revalidatePath(`/managers/${managerId}`);
-  revalidatePath(`/documents/${documentId}`);
+  revalidatePath("/documents/[id]", "page");
 }
 
 export async function updateDocumentMeta(documentId: string, formData: FormData) {
