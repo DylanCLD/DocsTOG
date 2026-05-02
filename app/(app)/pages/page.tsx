@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { createPage } from "@/lib/actions/pages";
+import { createPage, updatePageOrder } from "@/lib/actions/pages";
 import { requireProfile, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { PageRecord } from "@/types";
@@ -12,8 +12,13 @@ import type { PageRecord } from "@/types";
 export default async function PagesPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
-  const { data } = await supabase.from("pages").select("*").order("updated_at", { ascending: false });
+  const { data } = await supabase
+    .from("pages")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
   const pages = (data ?? []) as PageRecord[];
+  const writer = canWrite(profile.role);
 
   return (
     <div className="space-y-6">
@@ -25,7 +30,7 @@ export default async function PagesPage() {
         </p>
       </div>
 
-      {canWrite(profile.role) && (
+      {writer && (
         <form action={createPage} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="grid gap-3 md:grid-cols-[10rem_1fr_14rem_auto] md:items-end">
             <IconPickerField defaultValue="📄" />
@@ -52,7 +57,7 @@ export default async function PagesPage() {
           description="Commence par creer une page pour documenter une idee, une decision ou un systeme."
         />
       ) : (
-        <PageTreeNav pages={pages} defaultOpenAll />
+        <PageTreeNav pages={pages} defaultOpenAll canReorder={writer} onReorder={updatePageOrder} />
       )}
     </div>
   );

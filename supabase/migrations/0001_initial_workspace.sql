@@ -78,6 +78,7 @@ create table if not exists public.pages (
   title text not null,
   icon text not null default '📄',
   category text not null default 'Général',
+  sort_order integer not null default 0,
   content jsonb not null default '{"type":"doc","content":[{"type":"paragraph"}]}'::jsonb,
   created_by uuid references public.users(id) on delete set null,
   updated_by uuid references public.users(id) on delete set null,
@@ -103,6 +104,7 @@ create table if not exists public.documents (
   parent_document_id uuid references public.documents(id) on delete set null,
   title text not null,
   short_description text,
+  sort_order integer not null default 0,
   status public.document_status not null default 'todo',
   priority public.document_priority not null default 'medium',
   responsible_id uuid references public.users(id) on delete set null,
@@ -186,9 +188,11 @@ create table if not exists public.media_item_tags (
 
 create index if not exists pages_title_category_idx on public.pages using gin (to_tsvector('simple', title || ' ' || category));
 create index if not exists pages_parent_page_idx on public.pages(parent_page_id);
+create index if not exists pages_parent_sort_order_idx on public.pages(parent_page_id, sort_order);
 create index if not exists documents_manager_idx on public.documents(manager_id);
 create index if not exists documents_parent_document_idx on public.documents(parent_document_id);
 create index if not exists documents_manager_parent_idx on public.documents(manager_id, parent_document_id);
+create index if not exists documents_manager_parent_sort_order_idx on public.documents(manager_id, parent_document_id, sort_order);
 create index if not exists documents_status_priority_idx on public.documents(status, priority);
 create index if not exists planning_sessions_date_idx on public.planning_sessions(session_date, start_time);
 create index if not exists media_items_type_idx on public.media_items(type);

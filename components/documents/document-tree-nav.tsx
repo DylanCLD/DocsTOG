@@ -2,32 +2,74 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronRight, CornerDownRight, FileText, GripVertical } from "lucide-react";
 import { buildHierarchy, collectAncestorIds, type HierarchyNode } from "@/lib/hierarchy";
 import { cn } from "@/lib/utils";
 import type { DocumentRecord } from "@/types";
+
+type DocumentReorderAction = (managerId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
+type DragState = { id: string; parentId: string | null } | null;
+type OrderOverrides = Record<string, string[]>;
 
 export function DocumentTreeNav({
   documents,
   activeDocumentId,
   defaultOpenAll = false,
-  compact = false
+  compact = false,
+  canReorder = false,
+  managerId,
+  onReorder
 }: {
   documents: DocumentRecord[];
   activeDocumentId?: string;
   defaultOpenAll?: boolean;
   compact?: boolean;
+  canReorder?: boolean;
+  managerId?: string;
+  onReorder?: DocumentReorderAction;
 }) {
-  const roots = useMemo(() => buildHierarchy(documents, (document) => document.parent_document_id), [documents]);
+  const router = useRouter();
+  const [orderOverrides, setOrderOverrides] = useState<OrderOverrides>({});
+  const [dragState, setDragState] = useState<DragState>(null);
+  const localDocuments = useMemo(() => applyOrderOverrides(sortDocuments(documents), orderOverrides), [documents, orderOverrides]);
+  const roots = useMemo(() => buildHierarchy(localDocuments, (document) => document.parent_document_id), [localDocuments]);
   const initialOpenIds = useMemo(() => {
     if (defaultOpenAll) {
-      const parentIds = new Set(documents.map((document) => document.parent_document_id).filter(Boolean) as string[]);
+      const parentIds = new Set(localDocuments.map((document) => document.parent_document_id).filter(Boolean) as string[]);
       return parentIds;
     }
 
-    return activeDocumentId ? collectAncestorIds(documents, activeDocumentId, (document) => document.parent_document_id) : new Set<string>();
-  }, [activeDocumentId, defaultOpenAll, documents]);
+    return activeDocumentId ? collectAncestorIds(localDocuments, activeDocumentId, (document) => document.parent_document_id) : new Set<string>();
+  }, [activeDocumentId, defaultOpenAll, localDocuments]);
   const [openIds, setOpenIds] = useState(initialOpenIds);
+  const effectiveOpenIds = useMemo(() => new Set([...openIds, ...initialOpenIds]), [initialOpenIds, openIds]);
+
+  const handleDrop = (targetId: string, parentId: string | null, siblingIds: string[], beforeTarget: boolean) => {
+    if (!managerId || !dragState || dragState.parentId !== parentId || dragState.id === targetId) {
+      return;
+    }
+
+    const withoutDragged = siblingIds.filter((id) => id !== dragState.id);
+    const targetIndex = withoutDragged.indexOf(targetId);
+    if (targetIndex === -1) {
+      return;
+    }
+
+    const nextIds = [...withoutDragged];
+    nextIds.splice(beforeTarget ? targetIndex : targetIndex + 1, 0, dragState.id);
+    setOrderOverrides((current) => ({ ...current, [parentKey(parentId)]: nextIds }));
+    setDragState(null);
+
+    if (onReorder) {
+      void onReorder(managerId, parentId, nextIds)
+        .then(() => router.refresh())
+        .catch(() => {
+          setOrderOverrides({});
+          router.refresh();
+        });
+    }
+  };
 
   if (documents.length === 0) {
     return <p className="rounded-lg border border-[var(--border)] p-3 text-sm text-[var(--muted)]">Aucun document.</p>;
@@ -39,9 +81,14 @@ export function DocumentTreeNav({
         <DocumentTreeNode
           key={node.item.id}
           node={node}
+          siblingIds={roots.map((root) => root.item.id)}
           activeDocumentId={activeDocumentId}
           compact={compact}
-          openIds={openIds}
+          canReorder={canReorder && Boolean(managerId && onReorder)}
+          dragState={dragState}
+          setDragState={setDragState}
+          onDrop={handleDrop}
+          openIds={effectiveOpenIds}
           setOpenIds={setOpenIds}
         />
       ))}
@@ -51,20 +98,32 @@ export function DocumentTreeNav({
 
 function DocumentTreeNode({
   node,
+  siblingIds,
   activeDocumentId,
   compact,
+  canReorder,
+  dragState,
+  setDragState,
+  onDrop,
   openIds,
   setOpenIds
 }: {
   node: HierarchyNode<DocumentRecord>;
+  siblingIds: string[];
   activeDocumentId?: string;
   compact: boolean;
+  canReorder: boolean;
+  dragState: DragState;
+  setDragState: (value: DragState) => void;
+  onDrop: (targetId: string, parentId: string | null, siblingIds: string[], beforeTarget: boolean) => void;
   openIds: Set<string>;
   setOpenIds: (value: Set<string>) => void;
 }) {
   const hasChildren = node.children.length > 0;
   const isOpen = openIds.has(node.item.id);
   const isActive = activeDocumentId === node.item.id;
+  const parentId = node.item.parent_document_id ?? null;
+  const isDropScope = dragState?.parentId === parentId;
 
   const toggle = () => {
     const next = new Set(openIds);
@@ -78,7 +137,39 @@ function DocumentTreeNode({
 
   return (
     <div>
-      <div className="flex items-center gap-1" style={{ paddingLeft: `${node.depth * 0.85}rem` }}>
+      <div
+        className={cn("flex items-center gap-1 rounded-md", isDropScope && "transition-colors")}
+        style={{ paddingLeft: `${node.depth * 0.85}rem` }}
+        onDragOver={(event) => {
+          if (canReorder && isDropScope) {
+            event.preventDefault();
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onDrop(node.item.id, parentId, siblingIds, event.clientY < rect.top + rect.height / 2);
+        }}
+      >
+        {canReorder ? (
+          <span
+            role="button"
+            tabIndex={0}
+            draggable
+            title="Deplacer"
+            aria-label="Deplacer"
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", node.item.id);
+              setDragState({ id: node.item.id, parentId });
+            }}
+            onDragEnd={() => setDragState(null)}
+            className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-md text-[var(--muted)] active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </span>
+        ) : null}
+
         {hasChildren ? (
           <button
             type="button"
@@ -91,6 +182,8 @@ function DocumentTreeNode({
         ) : (
           <span className="h-7 w-7 shrink-0" />
         )}
+
+        {node.depth > 0 && <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />}
 
         <Link
           href={`/documents/${node.item.id}`}
@@ -113,13 +206,18 @@ function DocumentTreeNode({
       </div>
 
       {hasChildren && isOpen && (
-        <div className="mt-1 space-y-1">
+        <div className="mt-1 space-y-1 border-l border-[var(--border)]">
           {node.children.map((child) => (
             <DocumentTreeNode
               key={child.item.id}
               node={child}
+              siblingIds={node.children.map((sibling) => sibling.item.id)}
               activeDocumentId={activeDocumentId}
               compact={compact}
+              canReorder={canReorder}
+              dragState={dragState}
+              setDragState={setDragState}
+              onDrop={onDrop}
               openIds={openIds}
               setOpenIds={setOpenIds}
             />
@@ -128,4 +226,44 @@ function DocumentTreeNode({
       )}
     </div>
   );
+}
+
+function applyOrderOverrides(documents: DocumentRecord[], orderOverrides: OrderOverrides) {
+  let nextDocuments = documents;
+
+  Object.entries(orderOverrides).forEach(([key, orderedIds]) => {
+    const parentId = key === "__root__" ? null : key;
+    nextDocuments = applyLocalDocumentOrder(nextDocuments, parentId, orderedIds);
+  });
+
+  return nextDocuments;
+}
+
+function applyLocalDocumentOrder(documents: DocumentRecord[], parentId: string | null, orderedIds: string[]) {
+  const orderById = new Map(orderedIds.map((id, index) => [id, index]));
+
+  return sortDocuments(
+    documents.map((document) => {
+      if ((document.parent_document_id ?? null) !== parentId || !orderById.has(document.id)) {
+        return document;
+      }
+
+      return { ...document, sort_order: orderById.get(document.id) ?? document.sort_order };
+    })
+  );
+}
+
+function parentKey(parentId: string | null) {
+  return parentId ?? "__root__";
+}
+
+function sortDocuments(documents: DocumentRecord[]) {
+  return [...documents].sort((a, b) => {
+    const orderDelta = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    if (orderDelta !== 0) {
+      return orderDelta;
+    }
+
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
 }

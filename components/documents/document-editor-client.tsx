@@ -75,6 +75,7 @@ export function DocumentEditorClient({
         readOnly={readOnly}
         internalLinkTargets={internalLinkTargets}
         currentTarget={{ type: "document", id: document.id }}
+        enableQuickCheckbox
         onSave={(content) => updateDocumentContent(document.id, content)}
         collaboration={{
           id: document.id,

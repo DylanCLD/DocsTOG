@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { DocumentsWorkspace } from "@/components/documents/documents-workspace";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
-import { deleteManager } from "@/lib/actions/managers";
+import { deleteManager, updateDocumentOrder } from "@/lib/actions/managers";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentManager, DocumentRecord, Profile } from "@/types";
@@ -20,7 +20,8 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
       .from("documents")
       .select("*, users:responsible_id(id,email,full_name,avatar_url), document_tags(tags(id,name,color,created_at))")
       .eq("manager_id", id)
-      .order("updated_at", { ascending: false }),
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }),
     supabase.from("users").select("*").order("full_name", { ascending: true })
   ]);
 
@@ -54,7 +55,13 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
         {canDelete(profile.role) && <DeleteButton action={deleteManager.bind(null, manager.id)} />}
       </div>
 
-      <DocumentsWorkspace manager={manager} documents={documents} users={users} canWrite={canWrite(profile.role)} />
+      <DocumentsWorkspace
+        manager={manager}
+        documents={documents}
+        users={users}
+        canWrite={canWrite(profile.role)}
+        onReorder={updateDocumentOrder}
+      />
     </div>
   );
 }

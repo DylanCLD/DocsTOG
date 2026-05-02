@@ -50,6 +50,7 @@ export type PageRecord = {
   title: string;
   icon: string;
   category: string;
+  sort_order: number;
   content: Json;
   created_by: string | null;
   updated_by: string | null;
@@ -81,6 +82,7 @@ export type DocumentRecord = {
   parent_document_id: string | null;
   title: string;
   short_description: string | null;
+  sort_order: number;
   status: DocumentStatus;
   priority: DocumentPriority;
   responsible_id: string | null;

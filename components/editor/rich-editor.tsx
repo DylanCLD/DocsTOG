@@ -103,13 +103,15 @@ export function RichEditor({
   readOnly = false,
   collaboration,
   internalLinkTargets = [],
-  currentTarget
+  currentTarget,
+  enableQuickCheckbox = false
 }: {
   value: unknown;
   onSave: (content: JSONContent) => Promise<void>;
   readOnly?: boolean;
   internalLinkTargets?: InternalLinkTarget[];
   currentTarget?: CurrentInternalTarget;
+  enableQuickCheckbox?: boolean;
   collaboration?: {
     id: string;
     table: RealtimeTable;
@@ -320,11 +322,42 @@ export function RichEditor({
         }
 
         if (href.startsWith("/")) {
-          window.location.href = href;
+          router.push(href);
         } else {
           window.open(href, "_blank", "noopener,noreferrer");
         }
 
+        return true;
+      },
+      handleDoubleClick: (_view, _pos, event) => {
+        const element = event.target instanceof Element ? event.target : null;
+        const anchor = element?.closest("a[href]");
+        const href = anchor?.getAttribute("href");
+
+        if (!href || (!href.startsWith("/pages/") && !href.startsWith("/documents/"))) {
+          return false;
+        }
+
+        router.push(href);
+        return true;
+      },
+      handleKeyDown: (_view, event) => {
+        if (!editor || !enableQuickCheckbox || readOnly || (event.key !== " " && event.key !== "Enter")) {
+          return false;
+        }
+
+        const { from, empty, $from } = editor.state.selection;
+        if (!empty || $from.parent.type.name !== "paragraph") {
+          return false;
+        }
+
+        const textBeforeCursor = $from.parent.textBetween(0, $from.parentOffset, " ");
+        if (textBeforeCursor !== "[]") {
+          return false;
+        }
+
+        event.preventDefault();
+        editor.chain().focus().deleteRange({ from: from - 2, to: from }).toggleTaskList().run();
         return true;
       }
     }
@@ -518,6 +551,7 @@ export function RichEditor({
     setUploading(true);
     const supabase = createClient();
     const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
+    // eslint-disable-next-line react-hooks/purity
     const path = `editor-images/${Date.now()}-${safeName}`;
     const { error } = await supabase.storage.from("project-media").upload(path, file, {
       cacheControl: "3600",
@@ -691,7 +725,7 @@ export function RichEditor({
             onClick={() => void createInternalChildFromSelection()}
             className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface-elevated)] disabled:opacity-50"
           >
-            {creatingInternalLink ? "Creation..." : "Creer une sous-page ?"}
+            {creatingInternalLink ? "Creation..." : `Creer un ${childLabel}`}
           </button>
           <button
             type="button"

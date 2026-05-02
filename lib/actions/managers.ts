@@ -77,12 +77,14 @@ export async function createDocument(managerId: string, formData: FormData) {
   });
 
   const supabase = await createClient();
+  const sortOrder = await nextDocumentSortOrder(supabase, managerId, null);
   const { data, error } = await supabase
     .from("documents")
     .insert({
       manager_id: managerId,
       title: parsed.title,
       short_description: parsed.short_description,
+      sort_order: sortOrder,
       status: parsed.status,
       priority: parsed.priority,
       responsible_id: parsed.responsible_id,
@@ -135,11 +137,13 @@ export async function createSubDocument(parentDocumentId: string, title: string)
     throw new Error("Document parent introuvable.");
   }
 
+  const sortOrder = await nextDocumentSortOrder(supabase, parent.manager_id, parent.id);
   const insertData = {
     manager_id: parent.manager_id,
     parent_document_id: parent.id,
     title: parsed.title,
     short_description: null,
+    sort_order: sortOrder,
     status: parsed.status,
     priority: parsed.priority,
     content: emptyDoc(),
@@ -158,6 +162,7 @@ export async function createSubDocument(parentDocumentId: string, title: string)
       manager_id: insertData.manager_id,
       title: insertData.title,
       short_description: insertData.short_description,
+      sort_order: insertData.sort_order,
       status: insertData.status,
       priority: insertData.priority,
       content: insertData.content,
@@ -193,9 +198,90 @@ function isMissingParentColumnError(error: SupabaseActionError, columnName: stri
   );
 }
 
+async function nextDocumentSortOrder(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  managerId: string,
+  parentDocumentId: string | null
+) {
+  let query = supabase
+    .from("documents")
+    .select("sort_order")
+    .eq("manager_id", managerId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  query = parentDocumentId ? query.eq("parent_document_id", parentDocumentId) : query.is("parent_document_id", null);
+
+  const { data, error } = await query.maybeSingle();
+  if (error && !isMissingParentColumnError(error, "sort_order")) {
+    throw new Error(error.message);
+  }
+
+  return typeof data?.sort_order === "number" ? data.sort_order + 1 : 0;
+}
+
 export async function createSubDocumentFromForm(parentDocumentId: string, formData: FormData) {
   const result = await createSubDocument(parentDocumentId, formString(formData, "title"));
   redirect(result.href);
+}
+
+export async function updateDocumentOrder(managerId: string, parentDocumentId: string | null, orderedIds: string[]) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusee.");
+  }
+
+  const uniqueIds = Array.from(new Set(orderedIds));
+  if (uniqueIds.length !== orderedIds.length) {
+    throw new Error("Ordre invalide.");
+  }
+
+  if (uniqueIds.length === 0) {
+    return;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id,manager_id,parent_document_id")
+    .in("id", uniqueIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if ((data ?? []).length !== uniqueIds.length) {
+    throw new Error("Certains documents sont introuvables.");
+  }
+
+  const normalizedParentId = parentDocumentId ?? null;
+  const hasInvalidScope = (data ?? []).some(
+    (document) => document.manager_id !== managerId || (document.parent_document_id ?? null) !== normalizedParentId
+  );
+
+  if (hasInvalidScope) {
+    throw new Error("Les documents doivent appartenir au meme gestionnaire et au meme parent.");
+  }
+
+  const results = await Promise.all(
+    uniqueIds.map((id, index) =>
+      supabase
+        .from("documents")
+        .update({
+          sort_order: index,
+          updated_by: profile.id
+        })
+        .eq("id", id)
+    )
+  );
+  const updateError = results.find((result) => result.error)?.error;
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/managers");
+  revalidatePath(`/managers/${managerId}`);
 }
 
 export async function updateDocumentMeta(documentId: string, formData: FormData) {
