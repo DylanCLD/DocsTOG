@@ -272,24 +272,16 @@ export async function updateDocumentOrder(managerId: string, parentDocumentId: s
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("documents")
-    .select("id,manager_id,parent_document_id")
-    .in("id", uniqueIds);
+    .select("id,manager_id")
+    .in("id", uniqueIds)
+    .eq("manager_id", managerId);
 
   if (error) {
     throw new Error(error.message);
   }
 
   if ((data ?? []).length !== uniqueIds.length) {
-    throw new Error("Certains documents sont introuvables.");
-  }
-
-  const normalizedParentId = parentDocumentId ?? null;
-  const hasInvalidScope = (data ?? []).some(
-    (document) => document.manager_id !== managerId || (document.parent_document_id ?? null) !== normalizedParentId
-  );
-
-  if (hasInvalidScope) {
-    throw new Error("Les documents doivent appartenir au meme gestionnaire et au meme parent.");
+    throw new Error("Certains documents sont introuvables ou n'appartiennent pas a ce gestionnaire.");
   }
 
   const results = await Promise.all(
