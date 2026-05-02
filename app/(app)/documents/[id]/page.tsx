@@ -37,7 +37,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
 
   const [usersResult, siblingDocumentsResult, allPagesResult, allDocumentsResult] = await Promise.all([
     supabase.from("users").select("*").order("full_name", { ascending: true }),
-    fetchNavigationDocuments(document.manager_id),
+    fetchNavigationDocuments(supabase, document.manager_id),
     supabase
       .from("pages")
       .select("id,parent_page_id,title,category")
@@ -55,7 +55,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   let allPages = allPagesResult.data ?? [];
   let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
 
-  if (allPagesResult.error && isMissingSortOrderColumn(allPagesResult.error)) {
+  if (allPagesResult.error) {
     const fallbackPagesResult = await supabase
       .from("pages")
       .select("id,parent_page_id,title,category")
@@ -64,7 +64,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
     allPages = fallbackPagesResult.data ?? [];
   }
 
-  if (allDocumentsResult.error && isMissingSortOrderColumn(allDocumentsResult.error)) {
+  if (allDocumentsResult.error) {
     const fallbackDocumentsResult = await supabase
       .from("documents")
       .select("id,parent_document_id,title,short_description,document_managers(name)")
@@ -125,8 +125,8 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   );
 }
 
-async function fetchNavigationDocuments(managerId: string): Promise<DocumentTreeRecord[]> {
-  const orderedResult = await (await createClient())
+async function fetchNavigationDocuments(supabase: Awaited<ReturnType<typeof createClient>>, managerId: string): Promise<DocumentTreeRecord[]> {
+  const orderedResult = await supabase
     .from("documents")
     .select("id,manager_id,parent_document_id,title,short_description,sort_order,created_at")
     .eq("manager_id", managerId)
@@ -137,18 +137,14 @@ async function fetchNavigationDocuments(managerId: string): Promise<DocumentTree
     return normalizeNavigationDocuments((orderedResult.data ?? []) as NavigationDocumentRow[]);
   }
 
-  if (!isMissingSortOrderColumn(orderedResult.error)) {
-    throw new Error(orderedResult.error.message);
-  }
-
-  const fallbackResult = await (await createClient())
+  const fallbackResult = await supabase
     .from("documents")
     .select("id,manager_id,parent_document_id,title,short_description,created_at")
     .eq("manager_id", managerId)
     .order("updated_at", { ascending: false });
 
   if (fallbackResult.error) {
-    throw new Error(fallbackResult.error.message);
+    return [];
   }
 
   return normalizeNavigationDocuments((fallbackResult.data ?? []) as NavigationDocumentRow[]);
@@ -184,9 +180,4 @@ function mergeCurrentDocumentIntoNavigation(current: DocumentWithManager, docume
     },
     ...normalized
   ];
-}
-
-function isMissingSortOrderColumn(error: { code?: string; message?: string }) {
-  const message = error.message?.toLowerCase() ?? "";
-  return error.code === "42703" || error.code === "PGRST204" || (message.includes("sort_order") && message.includes("column"));
 }
