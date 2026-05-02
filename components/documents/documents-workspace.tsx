@@ -16,6 +16,7 @@ import { PRIORITY_LABELS, STATUS_LABELS } from "@/types";
 
 type ViewMode = "cards" | "list";
 type DocumentReorderAction = (managerId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
+type DocumentMoveAction = (managerId: string, documentId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
 
 const statusTones: Record<DocumentStatus, "neutral" | "accent" | "amber" | "green"> = {
   todo: "neutral",
@@ -36,13 +37,17 @@ export function DocumentsWorkspace({
   documents,
   users,
   canWrite,
-  onReorder
+  canReorder = true,
+  onReorder,
+  onMove
 }: {
   manager: DocumentManager;
   documents: DocumentRecord[];
   users: Profile[];
   canWrite: boolean;
+  canReorder?: boolean;
   onReorder?: DocumentReorderAction;
+  onMove?: DocumentMoveAction;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
@@ -181,9 +186,10 @@ export function DocumentsWorkspace({
         <DocumentTreeNav
           documents={filtered}
           defaultOpenAll
-          canReorder={canWrite && !hasActiveFilters}
+          canReorder={canWrite && canReorder && !hasActiveFilters}
           managerId={manager.id}
           onReorder={onReorder}
+          onMove={onMove}
         />
       )}
     </div>

@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { DocumentsWorkspace } from "@/components/documents/documents-workspace";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
-import { deleteManager, updateDocumentOrder } from "@/lib/actions/managers";
+import { deleteManager, moveDocumentInTree, updateDocumentOrder } from "@/lib/actions/managers";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { DocumentManager, DocumentRecord, Profile } from "@/types";
@@ -31,6 +31,7 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
 
   const manager = managerResult.data as DocumentManager;
   let documents = (documentsResult.data ?? []) as DocumentRecord[];
+  let documentsCanReorder = !documentsResult.error;
 
   if (documentsResult.error && isMissingSortOrderColumn(documentsResult.error)) {
     const fallbackDocumentsResult = await supabase
@@ -40,6 +41,7 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
       .order("updated_at", { ascending: false });
 
     documents = (fallbackDocumentsResult.data ?? []) as DocumentRecord[];
+    documentsCanReorder = false;
   }
 
   const users = (usersResult.data ?? []) as Profile[];
@@ -71,7 +73,9 @@ export default async function ManagerDetail({ params }: { params: Promise<{ id: 
         documents={documents}
         users={users}
         canWrite={canWrite(profile.role)}
+        canReorder={documentsCanReorder}
         onReorder={updateDocumentOrder}
+        onMove={moveDocumentInTree}
       />
     </div>
   );

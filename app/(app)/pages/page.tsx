@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { createPage, updatePageOrder } from "@/lib/actions/pages";
+import { createPage, movePageInTree, updatePageOrder } from "@/lib/actions/pages";
 import { requireProfile, canWrite } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { PageRecord } from "@/types";
@@ -63,7 +63,7 @@ export default async function PagesPage() {
           description="Commence par creer une page pour documenter une idee, une decision ou un systeme."
         />
       ) : (
-        <PageTreeNav pages={pages} defaultOpenAll canReorder={writer} onReorder={updatePageOrder} />
+        <PageTreeNav pages={pages} defaultOpenAll canReorder={writer} onReorder={updatePageOrder} onMove={movePageInTree} />
       )}
     </div>
   );

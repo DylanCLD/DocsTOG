@@ -5,7 +5,7 @@ import { DocumentEditorClient } from "@/components/documents/document-editor-cli
 import { DocumentTreeNav, type DocumentTreeRecord } from "@/components/documents/document-tree-nav";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
-import { deleteDocument, updateDocumentOrder } from "@/lib/actions/managers";
+import { deleteDocument, moveDocumentInTree, updateDocumentOrder } from "@/lib/actions/managers";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { buildInternalLinkTargets } from "@/lib/internal-links";
 import { createClient } from "@/lib/supabase/server";
@@ -131,6 +131,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
           canReorder={canReorderDocuments}
           managerId={document.manager_id}
           onReorder={updateDocumentOrder}
+          onMove={moveDocumentInTree}
         />
       </aside>
 

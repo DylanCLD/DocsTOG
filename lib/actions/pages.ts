@@ -109,25 +109,20 @@ export async function createSubPage(parentPageId: string, title: string) {
     .select("id")
     .single();
 
-  if (error && (isMissingParentColumnError(error, "parent_page_id") || isMissingParentColumnError(error, "sort_order"))) {
-    const fallbackInsertData = isMissingParentColumnError(error, "parent_page_id")
-      ? {
-          title: insertData.title,
-          icon: insertData.icon,
-          category: insertData.category,
-          content: insertData.content,
-          created_by: insertData.created_by,
-          updated_by: insertData.updated_by
-        }
-      : {
-          title: insertData.title,
-          icon: insertData.icon,
-          category: insertData.category,
-          parent_page_id: insertData.parent_page_id,
-          content: insertData.content,
-          created_by: insertData.created_by,
-          updated_by: insertData.updated_by
-        };
+  if (error && isMissingParentColumnError(error, "parent_page_id")) {
+    throw new Error("La migration des sous-pages n'est pas appliquee en base.");
+  }
+
+  if (error && isMissingParentColumnError(error, "sort_order")) {
+    const fallbackInsertData = {
+      title: insertData.title,
+      icon: insertData.icon,
+      category: insertData.category,
+      parent_page_id: insertData.parent_page_id,
+      content: insertData.content,
+      created_by: insertData.created_by,
+      updated_by: insertData.updated_by
+    };
     const fallbackResult = await supabase.from("pages").insert(fallbackInsertData).select("id").single();
     data = fallbackResult.data;
     error = fallbackResult.error;
@@ -231,6 +226,76 @@ export async function updatePageOrder(parentPageId: string | null, orderedIds: s
   }
 
   revalidatePath("/pages");
+}
+
+export async function movePageInTree(pageId: string, parentPageId: string | null, orderedIds: string[]) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusee.");
+  }
+
+  const uniqueIds = Array.from(new Set(orderedIds));
+  if (uniqueIds.length !== orderedIds.length || !uniqueIds.includes(pageId)) {
+    throw new Error("Deplacement invalide.");
+  }
+
+  if (parentPageId === pageId) {
+    throw new Error("Une page ne peut pas etre son propre parent.");
+  }
+
+  const supabase = await createClient();
+  const { data: pages, error: pagesError } = await supabase
+    .from("pages")
+    .select("id,parent_page_id")
+    .order("created_at", { ascending: true });
+
+  if (pagesError) {
+    throw new Error(pagesError.message);
+  }
+
+  const byId = new Map((pages ?? []).map((page) => [page.id, page]));
+  if (!byId.has(pageId)) {
+    throw new Error("Page introuvable.");
+  }
+
+  if (parentPageId && !byId.has(parentPageId)) {
+    throw new Error("Page parente introuvable.");
+  }
+
+  const unknownOrderedId = uniqueIds.find((id) => !byId.has(id));
+  if (unknownOrderedId) {
+    throw new Error("Certaines pages sont introuvables.");
+  }
+
+  let currentParent = parentPageId ? byId.get(parentPageId) : null;
+  while (currentParent) {
+    if (currentParent.id === pageId) {
+      throw new Error("Impossible de deplacer une page dans l'un de ses enfants.");
+    }
+
+    currentParent = currentParent.parent_page_id ? byId.get(currentParent.parent_page_id) ?? null : null;
+  }
+
+  const results = await Promise.all(
+    uniqueIds.map((id, index) =>
+      supabase
+        .from("pages")
+        .update({
+          parent_page_id: parentPageId,
+          sort_order: index,
+          updated_by: profile.id
+        })
+        .eq("id", id)
+    )
+  );
+  const updateError = results.find((result) => result.error)?.error;
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/pages");
+  revalidatePath(`/pages/${pageId}`);
 }
 
 export async function updatePageMeta(pageId: string, formData: FormData) {

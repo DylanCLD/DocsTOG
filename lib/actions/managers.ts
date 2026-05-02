@@ -182,29 +182,22 @@ export async function createSubDocument(parentDocumentId: string, title: string)
     .select("id")
     .single();
 
-  if (error && (isMissingParentColumnError(error, "parent_document_id") || isMissingParentColumnError(error, "sort_order"))) {
-    const fallbackInsertData = isMissingParentColumnError(error, "parent_document_id")
-      ? {
-          manager_id: insertData.manager_id,
-          title: insertData.title,
-          short_description: insertData.short_description,
-          status: insertData.status,
-          priority: insertData.priority,
-          content: insertData.content,
-          created_by: insertData.created_by,
-          updated_by: insertData.updated_by
-        }
-      : {
-          manager_id: insertData.manager_id,
-          parent_document_id: insertData.parent_document_id,
-          title: insertData.title,
-          short_description: insertData.short_description,
-          status: insertData.status,
-          priority: insertData.priority,
-          content: insertData.content,
-          created_by: insertData.created_by,
-          updated_by: insertData.updated_by
-        };
+  if (error && isMissingParentColumnError(error, "parent_document_id")) {
+    throw new Error("La migration des sous-documents n'est pas appliquee en base.");
+  }
+
+  if (error && isMissingParentColumnError(error, "sort_order")) {
+    const fallbackInsertData = {
+      manager_id: insertData.manager_id,
+      parent_document_id: insertData.parent_document_id,
+      title: insertData.title,
+      short_description: insertData.short_description,
+      status: insertData.status,
+      priority: insertData.priority,
+      content: insertData.content,
+      created_by: insertData.created_by,
+      updated_by: insertData.updated_by
+    };
     const fallbackResult = await supabase.from("documents").insert(fallbackInsertData).select("id").single();
     data = fallbackResult.data;
     error = fallbackResult.error;
@@ -318,6 +311,86 @@ export async function updateDocumentOrder(managerId: string, parentDocumentId: s
 
   revalidatePath("/managers");
   revalidatePath(`/managers/${managerId}`);
+}
+
+export async function moveDocumentInTree(
+  managerId: string,
+  documentId: string,
+  parentDocumentId: string | null,
+  orderedIds: string[]
+) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusee.");
+  }
+
+  const uniqueIds = Array.from(new Set(orderedIds));
+  if (uniqueIds.length !== orderedIds.length || !uniqueIds.includes(documentId)) {
+    throw new Error("Deplacement invalide.");
+  }
+
+  if (parentDocumentId === documentId) {
+    throw new Error("Un document ne peut pas etre son propre parent.");
+  }
+
+  const supabase = await createClient();
+  const { data: managerDocuments, error: documentsError } = await supabase
+    .from("documents")
+    .select("id,manager_id,parent_document_id")
+    .eq("manager_id", managerId);
+
+  if (documentsError) {
+    throw new Error(documentsError.message);
+  }
+
+  const documents = managerDocuments ?? [];
+  const byId = new Map(documents.map((document) => [document.id, document]));
+  const movedDocument = byId.get(documentId);
+
+  if (!movedDocument) {
+    throw new Error("Document introuvable.");
+  }
+
+  if (parentDocumentId && !byId.has(parentDocumentId)) {
+    throw new Error("Document parent introuvable.");
+  }
+
+  const unknownOrderedId = uniqueIds.find((id) => !byId.has(id));
+  if (unknownOrderedId) {
+    throw new Error("Certains documents sont introuvables.");
+  }
+
+  let currentParent = parentDocumentId ? byId.get(parentDocumentId) : null;
+  while (currentParent) {
+    if (currentParent.id === documentId) {
+      throw new Error("Impossible de deplacer un document dans l'un de ses enfants.");
+    }
+
+    currentParent = currentParent.parent_document_id ? byId.get(currentParent.parent_document_id) ?? null : null;
+  }
+
+  const results = await Promise.all(
+    uniqueIds.map((id, index) =>
+      supabase
+        .from("documents")
+        .update({
+          parent_document_id: parentDocumentId,
+          sort_order: index,
+          updated_by: profile.id
+        })
+        .eq("id", id)
+        .eq("manager_id", managerId)
+    )
+  );
+  const updateError = results.find((result) => result.error)?.error;
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/managers");
+  revalidatePath(`/managers/${managerId}`);
+  revalidatePath(`/documents/${documentId}`);
 }
 
 export async function updateDocumentMeta(documentId: string, formData: FormData) {

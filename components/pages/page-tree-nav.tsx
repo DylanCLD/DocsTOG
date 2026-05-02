@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils";
 import type { PageRecord } from "@/types";
 
 type PageReorderAction = (parentPageId: string | null, orderedIds: string[]) => Promise<void>;
+type PageMoveAction = (pageId: string, parentPageId: string | null, orderedIds: string[]) => Promise<void>;
 type DragState = { id: string; parentId: string | null } | null;
+type DropMode = "before" | "inside" | "after";
 type OrderOverrides = Record<string, string[]>;
 
 export function PageTreeNav({
@@ -18,7 +20,8 @@ export function PageTreeNav({
   defaultOpenAll = false,
   compact = false,
   canReorder = false,
-  onReorder
+  onReorder,
+  onMove
 }: {
   pages: PageRecord[];
   activePageId?: string;
@@ -26,6 +29,7 @@ export function PageTreeNav({
   compact?: boolean;
   canReorder?: boolean;
   onReorder?: PageReorderAction;
+  onMove?: PageMoveAction;
 }) {
   const router = useRouter();
   const [orderOverrides, setOrderOverrides] = useState<OrderOverrides>({});
@@ -52,8 +56,33 @@ export function PageTreeNav({
   const [openIds, setOpenIds] = useState(initialOpenIds);
   const effectiveOpenIds = useMemo(() => new Set([...openIds, ...initialOpenIds]), [initialOpenIds, openIds]);
 
-  const handleDrop = (targetId: string, parentId: string | null, siblingIds: string[], beforeTarget: boolean) => {
-    if (!dragState || dragState.parentId !== parentId || dragState.id === targetId) {
+  const handleDrop = (targetId: string, parentId: string | null, siblingIds: string[], childIds: string[], mode: DropMode) => {
+    if (!dragState || dragState.id === targetId) {
+      return;
+    }
+
+    if (mode === "inside") {
+      const nextChildIds = [...childIds.filter((id) => id !== dragState.id), dragState.id];
+      setOrderOverrides((current) => ({
+        ...current,
+        [parentKey(dragState.parentId)]: current[parentKey(dragState.parentId)]?.filter((id) => id !== dragState.id) ?? [],
+        [parentKey(targetId)]: nextChildIds
+      }));
+      setDragState(null);
+
+      if (onMove) {
+        void onMove(dragState.id, targetId, nextChildIds)
+          .then(() => router.refresh())
+          .catch(() => {
+            setOrderOverrides({});
+            router.refresh();
+          });
+      }
+
+      return;
+    }
+
+    if (dragState.parentId !== parentId) {
       return;
     }
 
@@ -64,7 +93,7 @@ export function PageTreeNav({
     }
 
     const nextIds = [...withoutDragged];
-    nextIds.splice(beforeTarget ? targetIndex : targetIndex + 1, 0, dragState.id);
+    nextIds.splice(mode === "before" ? targetIndex : targetIndex + 1, 0, dragState.id);
     setOrderOverrides((current) => ({ ...current, [parentKey(parentId)]: nextIds }));
     setDragState(null);
 
@@ -92,6 +121,7 @@ export function PageTreeNav({
           activePageId={activePageId}
           compact={compact}
           canReorder={canReorder && Boolean(onReorder)}
+          canMove={canReorder && Boolean(onMove)}
           dragState={dragState}
           setDragState={setDragState}
           onDrop={handleDrop}
@@ -109,6 +139,7 @@ function PageTreeNode({
   activePageId,
   compact,
   canReorder,
+  canMove,
   dragState,
   setDragState,
   onDrop,
@@ -120,9 +151,10 @@ function PageTreeNode({
   activePageId?: string;
   compact: boolean;
   canReorder: boolean;
+  canMove: boolean;
   dragState: DragState;
   setDragState: (value: DragState) => void;
-  onDrop: (targetId: string, parentId: string | null, siblingIds: string[], beforeTarget: boolean) => void;
+  onDrop: (targetId: string, parentId: string | null, siblingIds: string[], childIds: string[], mode: DropMode) => void;
   openIds: Set<string>;
   setOpenIds: (value: Set<string>) => void;
 }) {
@@ -131,6 +163,7 @@ function PageTreeNode({
   const isActive = activePageId === node.item.id;
   const parentId = node.item.parent_page_id ?? null;
   const isDropScope = dragState?.parentId === parentId;
+  const canDropInside = canMove && Boolean(dragState && dragState.id !== node.item.id && !containsNode(node, dragState.id));
 
   const toggle = () => {
     const next = new Set(openIds);
@@ -145,33 +178,44 @@ function PageTreeNode({
   return (
     <div>
       <div
-        className={cn("flex items-center gap-1 rounded-md", isDropScope && "transition-colors")}
+        draggable={canReorder}
+        className={cn(
+          "group relative flex items-center gap-1 rounded-md border border-transparent transition-colors",
+          canReorder && "cursor-grab active:cursor-grabbing",
+          isDropScope && "transition-colors"
+        )}
         style={{ paddingLeft: `${node.depth * 0.85}rem` }}
+        onDragStart={(event) => {
+          if (!canReorder) {
+            return;
+          }
+
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", node.item.id);
+          setDragState({ id: node.item.id, parentId });
+        }}
+        onDragEnd={() => setDragState(null)}
         onDragOver={(event) => {
-          if (canReorder && isDropScope) {
+          if (canReorder && (isDropScope || canDropInside)) {
             event.preventDefault();
           }
         }}
         onDrop={(event) => {
           event.preventDefault();
           const rect = event.currentTarget.getBoundingClientRect();
-          onDrop(node.item.id, parentId, siblingIds, event.clientY < rect.top + rect.height / 2);
+          const offset = (event.clientY - rect.top) / rect.height;
+          const mode: DropMode = canDropInside && offset >= 0.32 && offset <= 0.68 ? "inside" : offset < 0.5 ? "before" : "after";
+          onDrop(node.item.id, parentId, siblingIds, node.children.map((child) => child.item.id), mode);
         }}
       >
+        {node.depth > 0 && <span className="absolute left-2 top-1/2 h-px w-4 bg-[var(--border)]" aria-hidden />}
         {canReorder ? (
           <span
             role="button"
             tabIndex={0}
-            draggable
             title="Deplacer"
             aria-label="Deplacer"
-            onDragStart={(event) => {
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", node.item.id);
-              setDragState({ id: node.item.id, parentId });
-            }}
-            onDragEnd={() => setDragState(null)}
-            className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-md text-[var(--muted)] active:cursor-grabbing"
+            className="flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition group-hover:bg-[var(--surface-elevated)] group-hover:text-[var(--text)]"
           >
             <GripVertical className="h-4 w-4" />
           </span>
@@ -193,9 +237,10 @@ function PageTreeNode({
         {node.depth > 0 && <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />}
 
         <Link
+          draggable={false}
           href={`/pages/${node.item.id}`}
           className={cn(
-            "min-w-0 flex-1 rounded-lg px-2 py-2 transition hover:bg-[var(--surface-elevated)]",
+            "min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 transition hover:bg-[var(--surface-elevated)]",
             isActive && "bg-[var(--surface-soft)] text-[var(--text)] ring-1 ring-[var(--accent)]",
             compact ? "text-sm" : "text-sm"
           )}
@@ -209,7 +254,7 @@ function PageTreeNode({
       </div>
 
       {hasChildren && isOpen && (
-        <div className="mt-1 space-y-1 border-l border-[var(--border)]">
+        <div className="ml-5 mt-1 space-y-1 border-l border-dashed border-[var(--border)] pl-3">
           {node.children.map((child) => (
             <PageTreeNode
               key={child.item.id}
@@ -218,6 +263,7 @@ function PageTreeNode({
               activePageId={activePageId}
               compact={compact}
               canReorder={canReorder}
+              canMove={canMove}
               dragState={dragState}
               setDragState={setDragState}
               onDrop={onDrop}
@@ -258,6 +304,10 @@ function applyLocalPageOrder(pages: PageRecord[], parentId: string | null, order
 
 function parentKey(parentId: string | null) {
   return parentId ?? "__root__";
+}
+
+function containsNode(node: HierarchyNode<PageRecord>, id: string): boolean {
+  return node.children.some((child) => child.item.id === id || containsNode(child, id));
 }
 
 function sortPages(pages: PageRecord[]) {

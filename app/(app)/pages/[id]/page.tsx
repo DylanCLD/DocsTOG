@@ -5,7 +5,7 @@ import { PageEditorClient } from "@/components/pages/page-editor-client";
 import { PageTreeNav } from "@/components/pages/page-tree-nav";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
-import { deletePage, updatePageOrder } from "@/lib/actions/pages";
+import { deletePage, movePageInTree, updatePageOrder } from "@/lib/actions/pages";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { buildInternalLinkTargets } from "@/lib/internal-links";
 import { createClient } from "@/lib/supabase/server";
@@ -68,7 +68,14 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
           <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Pages</p>
           <h2 className="mt-1 text-sm font-semibold">Arborescence</h2>
         </div>
-        <PageTreeNav pages={pages} activePageId={page.id} compact canReorder={writer} onReorder={updatePageOrder} />
+        <PageTreeNav
+          pages={pages}
+          activePageId={page.id}
+          compact
+          canReorder={writer}
+          onReorder={updatePageOrder}
+          onMove={movePageInTree}
+        />
       </aside>
 
       <main className="min-w-0 space-y-6">
