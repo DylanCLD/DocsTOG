@@ -382,6 +382,7 @@ export async function moveDocumentInTree(
 
   revalidatePath("/managers");
   revalidatePath(`/managers/${managerId}`);
+  revalidatePath(`/documents/${documentId}`);
 }
 
 export async function updateDocumentMeta(documentId: string, formData: FormData) {

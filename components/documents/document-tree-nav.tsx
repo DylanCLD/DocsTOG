@@ -41,6 +41,7 @@ export function DocumentTreeNav({
   const [dragState, setDragState] = useState<DragState>(null);
   const localDocuments = useMemo(() => applyOrderOverrides(sortDocuments(documents), orderOverrides), [documents, orderOverrides]);
   const roots = useMemo(() => buildHierarchy(localDocuments, (document) => document.parent_document_id), [localDocuments]);
+  const rootIds = useMemo(() => roots.map((root) => root.item.id), [roots]);
   const initialOpenIds = useMemo(() => {
     if (defaultOpenAll) {
       const parentIds = new Set(localDocuments.map((document) => document.parent_document_id).filter(Boolean) as string[]);
@@ -118,6 +119,20 @@ export function DocumentTreeNav({
     }
   };
 
+  const promoteToRoot = (documentId: string) => {
+    if (!managerId || !onMove) {
+      return;
+    }
+
+    const nextRootIds = [...rootIds.filter((id) => id !== documentId), documentId];
+    void onMove(managerId, documentId, null, nextRootIds)
+      .then(() => router.refresh())
+      .catch(() => {
+        setOrderOverrides({});
+        router.refresh();
+      });
+  };
+
   if (documents.length === 0) {
     return <p className="rounded-lg border border-[var(--border)] p-3 text-sm text-[var(--muted)]">Aucun document.</p>;
   }
@@ -136,6 +151,7 @@ export function DocumentTreeNav({
           dragState={dragState}
           setDragState={setDragState}
           onDrop={handleDrop}
+          onPromoteToRoot={promoteToRoot}
           openIds={effectiveOpenIds}
           setOpenIds={setOpenIds}
         />
@@ -154,6 +170,7 @@ function DocumentTreeNode({
   dragState,
   setDragState,
   onDrop,
+  onPromoteToRoot,
   openIds,
   setOpenIds
 }: {
@@ -166,6 +183,7 @@ function DocumentTreeNode({
   dragState: DragState;
   setDragState: (value: DragState) => void;
   onDrop: (targetId: string, parentId: string | null, siblingIds: string[], childIds: string[], mode: DropMode) => void;
+  onPromoteToRoot: (documentId: string) => void;
   openIds: Set<string>;
   setOpenIds: (value: Set<string>) => void;
 }) {
@@ -245,7 +263,24 @@ function DocumentTreeNode({
           <span className="h-7 w-7 shrink-0" />
         )}
 
-        {node.depth > 0 && <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />}
+        {node.depth > 0 && (
+          <button
+            type="button"
+            draggable={false}
+            title="Double-clique pour en faire un document normal"
+            aria-label="Double-clique pour en faire un document normal"
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (canMove) {
+                onPromoteToRoot(node.item.id);
+              }
+            }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--accent)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--accent-strong)]"
+          >
+            <CornerDownRight className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         <Link
           draggable={false}
@@ -282,6 +317,7 @@ function DocumentTreeNode({
               dragState={dragState}
               setDragState={setDragState}
               onDrop={onDrop}
+              onPromoteToRoot={onPromoteToRoot}
               openIds={openIds}
               setOpenIds={setOpenIds}
             />
