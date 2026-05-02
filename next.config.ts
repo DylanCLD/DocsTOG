@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["yjs", "y-protocols", "lib0"],
   images: {
     remotePatterns: [
       {
