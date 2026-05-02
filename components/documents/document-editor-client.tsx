@@ -1,8 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { updateDocumentContent, updateDocumentMeta } from "@/lib/actions/managers";
-import { RichEditor } from "@/components/editor/rich-editor";
 import { Button } from "@/components/ui/button";
+
+const RichEditor = dynamic(() => import("@/components/editor/rich-editor").then((m) => m.RichEditor), { ssr: false });
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import type { DocumentRecord, InternalLinkTarget, Profile } from "@/types";
 import { PRIORITY_LABELS, STATUS_LABELS } from "@/types";

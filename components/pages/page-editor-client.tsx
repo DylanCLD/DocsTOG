@@ -1,8 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { updatePageContent, updatePageMeta } from "@/lib/actions/pages";
-import { RichEditor } from "@/components/editor/rich-editor";
 import { Button } from "@/components/ui/button";
+
+const RichEditor = dynamic(() => import("@/components/editor/rich-editor").then((m) => m.RichEditor), { ssr: false });
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label } from "@/components/ui/input";
 import type { InternalLinkTarget, PageRecord, Profile } from "@/types";
