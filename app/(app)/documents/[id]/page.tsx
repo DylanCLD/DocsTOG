@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarClock } from "lucide-react";
 import { DocumentEditorClient } from "@/components/documents/document-editor-client";
-import { DocumentTreeNav } from "@/components/documents/document-tree-nav";
+import { DocumentTreeNav, type DocumentTreeRecord } from "@/components/documents/document-tree-nav";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/ui/delete-button";
 import { deleteDocument, updateDocumentOrder } from "@/lib/actions/managers";
@@ -14,7 +14,7 @@ import type { DocumentManager, DocumentRecord, Profile } from "@/types";
 
 type DocumentWithManager = DocumentRecord & { document_managers: DocumentManager };
 
-type NavigationDocument = Omit<DocumentRecord, "parent_document_id"> & {
+type NavigationDocumentRow = DocumentTreeRecord & {
   parent_document_id?: string | null;
 };
 
@@ -37,12 +37,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
 
   const [usersResult, siblingDocumentsResult, allPagesResult, allDocumentsResult] = await Promise.all([
     supabase.from("users").select("*").order("full_name", { ascending: true }),
-    supabase
-      .from("documents")
-      .select("id,manager_id,parent_document_id,title,short_description,sort_order,status,priority,responsible_id,content,created_by,updated_by,created_at,updated_at,document_tags(tags(id,name,color,created_at))")
-      .eq("manager_id", document.manager_id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
+    fetchNavigationDocuments(document.manager_id),
     supabase
       .from("pages")
       .select("id,parent_page_id,title,category")
@@ -56,19 +51,9 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   ]);
 
   const users = (usersResult.data ?? []) as Profile[];
-  let navigationDocuments = (siblingDocumentsResult.data ?? []) as unknown as NavigationDocument[];
+  const navigationDocuments = siblingDocumentsResult;
   let allPages = allPagesResult.data ?? [];
   let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
-
-  if (siblingDocumentsResult.error && isMissingSortOrderColumn(siblingDocumentsResult.error)) {
-    const fallbackDocumentsResult = await supabase
-      .from("documents")
-      .select("id,manager_id,parent_document_id,title,short_description,status,priority,responsible_id,content,created_by,updated_by,created_at,updated_at,document_tags(tags(id,name,color,created_at))")
-      .eq("manager_id", document.manager_id)
-      .order("updated_at", { ascending: false });
-
-    navigationDocuments = (fallbackDocumentsResult.data ?? []) as unknown as NavigationDocument[];
-  }
 
   if (allPagesResult.error && isMissingSortOrderColumn(allPagesResult.error)) {
     const fallbackPagesResult = await supabase
@@ -140,17 +125,65 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   );
 }
 
-function mergeCurrentDocumentIntoNavigation(current: DocumentWithManager, documents: NavigationDocument[]): DocumentRecord[] {
+async function fetchNavigationDocuments(managerId: string): Promise<DocumentTreeRecord[]> {
+  const orderedResult = await (await createClient())
+    .from("documents")
+    .select("id,manager_id,parent_document_id,title,short_description,sort_order,created_at")
+    .eq("manager_id", managerId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (!orderedResult.error) {
+    return normalizeNavigationDocuments((orderedResult.data ?? []) as NavigationDocumentRow[]);
+  }
+
+  if (!isMissingSortOrderColumn(orderedResult.error)) {
+    throw new Error(orderedResult.error.message);
+  }
+
+  const fallbackResult = await (await createClient())
+    .from("documents")
+    .select("id,manager_id,parent_document_id,title,short_description,created_at")
+    .eq("manager_id", managerId)
+    .order("updated_at", { ascending: false });
+
+  if (fallbackResult.error) {
+    throw new Error(fallbackResult.error.message);
+  }
+
+  return normalizeNavigationDocuments((fallbackResult.data ?? []) as NavigationDocumentRow[]);
+}
+
+function normalizeNavigationDocuments(documents: NavigationDocumentRow[]): DocumentTreeRecord[] {
+  return documents.map((document, index) => ({
+    ...document,
+    parent_document_id: document.parent_document_id ?? null,
+    sort_order: typeof document.sort_order === "number" ? document.sort_order : index
+  }));
+}
+
+function mergeCurrentDocumentIntoNavigation(current: DocumentWithManager, documents: DocumentTreeRecord[]): DocumentTreeRecord[] {
   const normalized = documents.map((document) => ({
     ...document,
     parent_document_id: document.parent_document_id ?? null
-  })) as DocumentRecord[];
+  }));
 
   if (normalized.some((document) => document.id === current.id)) {
     return normalized;
   }
 
-  return [{ ...current, parent_document_id: current.parent_document_id ?? null }, ...normalized];
+  return [
+    {
+      id: current.id,
+      manager_id: current.manager_id,
+      parent_document_id: current.parent_document_id ?? null,
+      title: current.title,
+      short_description: current.short_description,
+      sort_order: current.sort_order ?? 0,
+      created_at: current.created_at
+    },
+    ...normalized
+  ];
 }
 
 function isMissingSortOrderColumn(error: { code?: string; message?: string }) {

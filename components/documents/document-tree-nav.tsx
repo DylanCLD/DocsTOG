@@ -11,6 +11,9 @@ import type { DocumentRecord } from "@/types";
 type DocumentReorderAction = (managerId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
 type DragState = { id: string; parentId: string | null } | null;
 type OrderOverrides = Record<string, string[]>;
+export type DocumentTreeRecord = Pick<DocumentRecord, "id" | "manager_id" | "parent_document_id" | "title" | "short_description" | "created_at"> & {
+  sort_order?: number | null;
+};
 
 export function DocumentTreeNav({
   documents,
@@ -21,7 +24,7 @@ export function DocumentTreeNav({
   managerId,
   onReorder
 }: {
-  documents: DocumentRecord[];
+  documents: DocumentTreeRecord[];
   activeDocumentId?: string;
   defaultOpenAll?: boolean;
   compact?: boolean;
@@ -40,7 +43,16 @@ export function DocumentTreeNav({
       return parentIds;
     }
 
-    return activeDocumentId ? collectAncestorIds(localDocuments, activeDocumentId, (document) => document.parent_document_id) : new Set<string>();
+    if (!activeDocumentId) {
+      return new Set<string>();
+    }
+
+    const ids = collectAncestorIds(localDocuments, activeDocumentId, (document) => document.parent_document_id);
+    if (localDocuments.some((document) => document.parent_document_id === activeDocumentId)) {
+      ids.add(activeDocumentId);
+    }
+
+    return ids;
   }, [activeDocumentId, defaultOpenAll, localDocuments]);
   const [openIds, setOpenIds] = useState(initialOpenIds);
   const effectiveOpenIds = useMemo(() => new Set([...openIds, ...initialOpenIds]), [initialOpenIds, openIds]);
@@ -108,7 +120,7 @@ function DocumentTreeNode({
   openIds,
   setOpenIds
 }: {
-  node: HierarchyNode<DocumentRecord>;
+  node: HierarchyNode<DocumentTreeRecord>;
   siblingIds: string[];
   activeDocumentId?: string;
   compact: boolean;
@@ -228,7 +240,7 @@ function DocumentTreeNode({
   );
 }
 
-function applyOrderOverrides(documents: DocumentRecord[], orderOverrides: OrderOverrides) {
+function applyOrderOverrides(documents: DocumentTreeRecord[], orderOverrides: OrderOverrides) {
   let nextDocuments = documents;
 
   Object.entries(orderOverrides).forEach(([key, orderedIds]) => {
@@ -239,7 +251,7 @@ function applyOrderOverrides(documents: DocumentRecord[], orderOverrides: OrderO
   return nextDocuments;
 }
 
-function applyLocalDocumentOrder(documents: DocumentRecord[], parentId: string | null, orderedIds: string[]) {
+function applyLocalDocumentOrder(documents: DocumentTreeRecord[], parentId: string | null, orderedIds: string[]) {
   const orderById = new Map(orderedIds.map((id, index) => [id, index]));
 
   return sortDocuments(
@@ -248,7 +260,7 @@ function applyLocalDocumentOrder(documents: DocumentRecord[], parentId: string |
         return document;
       }
 
-      return { ...document, sort_order: orderById.get(document.id) ?? document.sort_order };
+      return { ...document, sort_order: orderById.get(document.id) ?? document.sort_order ?? 0 };
     })
   );
 }
@@ -257,7 +269,7 @@ function parentKey(parentId: string | null) {
   return parentId ?? "__root__";
 }
 
-function sortDocuments(documents: DocumentRecord[]) {
+function sortDocuments(documents: DocumentTreeRecord[]) {
   return [...documents].sort((a, b) => {
     const orderDelta = (a.sort_order ?? 0) - (b.sort_order ?? 0);
     if (orderDelta !== 0) {

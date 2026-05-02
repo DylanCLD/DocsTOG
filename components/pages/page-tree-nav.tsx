@@ -38,7 +38,16 @@ export function PageTreeNav({
       return parentIds;
     }
 
-    return activePageId ? collectAncestorIds(localPages, activePageId, (page) => page.parent_page_id) : new Set<string>();
+    if (!activePageId) {
+      return new Set<string>();
+    }
+
+    const ids = collectAncestorIds(localPages, activePageId, (page) => page.parent_page_id);
+    if (localPages.some((page) => page.parent_page_id === activePageId)) {
+      ids.add(activePageId);
+    }
+
+    return ids;
   }, [activePageId, defaultOpenAll, localPages]);
   const [openIds, setOpenIds] = useState(initialOpenIds);
   const effectiveOpenIds = useMemo(() => new Set([...openIds, ...initialOpenIds]), [initialOpenIds, openIds]);
