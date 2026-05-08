@@ -127,6 +127,8 @@ export function RichEditor({
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
   const seededRef = useRef(false);
   const internalLinkSelectionRef = useRef<{ from: number; to: number; empty: boolean } | null>(null);
+  const isSavingRef = useRef(false);
+  const queuedSaveRef = useRef<JSONContent | null>(null);
   const router = useRouter();
   const collaborationId = collaboration?.id;
   const collaborationTable = collaboration?.table;
@@ -209,12 +211,24 @@ export function RichEditor({
         return;
       }
 
+      queuedSaveRef.current = content;
       setSaveStatus("saving");
+      if (isSavingRef.current) {
+        return;
+      }
+
+      isSavingRef.current = true;
       try {
-        await onSave(content);
+        while (queuedSaveRef.current) {
+          const nextContent = queuedSaveRef.current;
+          queuedSaveRef.current = null;
+          await onSave(nextContent);
+        }
         setSaveStatus("saved");
       } catch {
         setSaveStatus("error");
+      } finally {
+        isSavingRef.current = false;
       }
     },
     [onSave, readOnly]
@@ -327,7 +341,7 @@ export function RichEditor({
       }, 350);
     },
     onUpdate: ({ editor: currentEditor }) => {
-      debouncedSave(currentEditor.getJSON());
+      debouncedSave.run(currentEditor.getJSON());
     },
     editorProps: {
       handleClick: (_view, _pos, event) => {
@@ -517,6 +531,7 @@ export function RichEditor({
       return;
     }
 
+    debouncedSave.cancel();
     await saveContent(editor.getJSON());
   };
 
