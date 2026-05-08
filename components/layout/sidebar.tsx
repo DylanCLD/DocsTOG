@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -36,8 +37,16 @@ export function Sidebar({
   return (
     <aside className="flex h-dvh w-full flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:sticky lg:top-0 lg:w-72">
       <div className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-lg font-black text-[#07110f]">
-          {settings?.logo_url ? "◆" : "W"}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
+          <Image
+            src={settings?.logo_url ?? "/logo.svg"}
+            alt=""
+            width={40}
+            height={40}
+            className="h-full w-full object-cover"
+            priority
+            unoptimized
+          />
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{settings?.project_name ?? "Workspace Projet"}</p>

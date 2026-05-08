@@ -512,10 +512,19 @@ export function RichEditor({
     await createInternalChild(selectedText);
   };
 
-  const addImageUrl = () => {
+  const persistCurrentContent = async () => {
+    if (!editor) {
+      return;
+    }
+
+    await saveContent(editor.getJSON());
+  };
+
+  const addImageUrl = async () => {
     const url = window.prompt("URL de l'image", "https://");
     if (url?.trim()) {
       editor?.chain().focus().setImage({ src: url.trim() }).run();
+      await persistCurrentContent();
     }
   };
 
@@ -572,6 +581,7 @@ export function RichEditor({
     if (!error) {
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().setImage({ src: data.publicUrl }).run();
+      await persistCurrentContent();
     }
 
     setUploading(false);
