@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { syncTagsForTarget } from "@/lib/actions/tags";
+import { editorRoom, extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
 import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { documentSchema, formString, managerSchema, nullableString } from "@/lib/validation";
@@ -427,27 +428,58 @@ export async function updateDocumentMeta(documentId: string, formData: FormData)
   revalidatePath(`/documents/${documentId}`);
 }
 
-export async function updateDocumentContent(documentId: string, content: unknown) {
+export async function updateDocumentContent(
+  documentId: string,
+  content: unknown,
+  options: ContentSaveOptions = {}
+): Promise<ContentSaveResult> {
   const profile = await requireProfile();
   if (!canWrite(profile.role)) {
     throw new Error("Permission refusée.");
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const imageSrcs = extractImageSrcs(content);
+  const { data, error } = await supabase
     .from("documents")
     .update({
       content,
       updated_by: profile.id
     })
-    .eq("id", documentId);
+    .eq("id", documentId)
+    .select("updated_at")
+    .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
+  const { error: stateError } = await supabase.from("editor_collaboration_states").upsert(
+    {
+      room: editorRoom("documents", documentId),
+      target_type: "document",
+      target_id: documentId,
+      content_snapshot: content,
+      image_srcs: imageSrcs,
+      updated_by: profile.id
+    },
+    {
+      onConflict: "room"
+    }
+  );
+
+  if (stateError) {
+    throw new Error(stateError.message);
+  }
+
   revalidatePath("/managers");
   revalidatePath(`/documents/${documentId}`);
+
+  return {
+    updatedAt: data?.updated_at ?? null,
+    imageSrcs,
+    verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
+  };
 }
 
 export async function deleteDocument(documentId: string, managerId?: string) {

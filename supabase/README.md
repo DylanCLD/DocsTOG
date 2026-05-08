@@ -1,7 +1,7 @@
 # Supabase
 
 1. Crée un projet Supabase.
-2. Dans SQL Editor, exécute `supabase/migrations/0001_initial_workspace.sql`.
+2. Dans SQL Editor, exécute les fichiers `supabase/migrations/*.sql` dans l'ordre.
 3. Dans Authentication > Providers, active Google.
 4. Dans Authentication > URL Configuration, ajoute:
    - Site URL: `http://localhost:3000` en local, puis ton URL Vercel.

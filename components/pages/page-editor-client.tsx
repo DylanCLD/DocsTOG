@@ -44,7 +44,7 @@ export function PageEditorClient({
         readOnly={readOnly}
         internalLinkTargets={internalLinkTargets}
         currentTarget={{ type: "page", id: page.id }}
-        onSave={(content) => updatePageContent(page.id, content)}
+        onSave={(content, options) => updatePageContent(page.id, content, options)}
         collaboration={{
           id: page.id,
           table: "pages",

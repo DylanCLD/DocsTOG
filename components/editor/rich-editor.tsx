@@ -56,11 +56,18 @@ import { SupabaseYjsProvider } from "@/components/editor/supabase-yjs-provider";
 import { createSubDocument } from "@/lib/actions/managers";
 import { createSubPage } from "@/lib/actions/pages";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
+import {
+  editorRoom,
+  editorTargetType,
+  hasImageSrc,
+  type ContentSaveOptions,
+  type ContentSaveResult
+} from "@/lib/editor-content";
 import { createClient } from "@/lib/supabase/browser";
 import { cn, emptyDoc } from "@/lib/utils";
 import type { InternalLinkTarget, Profile } from "@/types";
 
-type SaveStatus = "idle" | "saving" | "saved" | "error";
+type SaveStatus = "idle" | "saving" | "saved" | "image-saving" | "image-saved" | "image-unverified" | "error";
 type RealtimeTable = "pages" | "documents";
 type CurrentInternalTarget = { type: "page" | "document"; id: string };
 type InternalLinkTab = InternalLinkTarget["type"];
@@ -95,14 +102,6 @@ function userName(profile: Pick<Profile, "email" | "full_name">) {
   return profile.full_name ?? profile.email;
 }
 
-function hasImageSrc(content: JSONContent, src: string): boolean {
-  if (content.type === "image" && content.attrs?.src === src) {
-    return true;
-  }
-
-  return content.content?.some((child) => hasImageSrc(child, src)) ?? false;
-}
-
 function waitForEditorTick() {
   return new Promise((resolve) => window.setTimeout(resolve, 25));
 }
@@ -117,7 +116,7 @@ export function RichEditor({
   enableQuickCheckbox = false
 }: {
   value: unknown;
-  onSave: (content: JSONContent) => Promise<void>;
+  onSave: (content: JSONContent, options?: ContentSaveOptions) => Promise<ContentSaveResult>;
   readOnly?: boolean;
   internalLinkTargets?: InternalLinkTarget[];
   currentTarget?: CurrentInternalTarget;
@@ -137,10 +136,10 @@ export function RichEditor({
   const [internalLinkPickerMode, setInternalLinkPickerMode] = useState<InternalLinkPickerMode>("all");
   const [internalLinkError, setInternalLinkError] = useState<string | null>(null);
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
+  const [readyProvider, setReadyProvider] = useState<SupabaseYjsProvider | null>(null);
   const seededRef = useRef(false);
   const internalLinkSelectionRef = useRef<{ from: number; to: number; empty: boolean } | null>(null);
-  const isSavingRef = useRef(false);
-  const queuedSaveRef = useRef<JSONContent | null>(null);
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const router = useRouter();
   const collaborationId = collaboration?.id;
   const collaborationTable = collaboration?.table;
@@ -176,11 +175,16 @@ export function RichEditor({
     const doc = new Y.Doc();
     const provider = new SupabaseYjsProvider({
       doc,
-      room: `editor-yjs:${collaborationTable}:${collaborationId}`
+      room: editorRoom(collaborationTable, collaborationId),
+      targetId: collaborationId,
+      targetType: editorTargetType(collaborationTable),
+      userId: collaboration.profile.id,
+      writable: !readOnly
     });
 
     return { doc, provider };
-  }, [collaborationId, collaborationTable]);
+  }, [collaboration, collaborationId, collaborationTable, readOnly]);
+  const collaborationReady = !collaborationState || readyProvider === collaborationState.provider;
 
   const activeUsers = useMemo(() => {
     void activeUsersVersion;
@@ -209,6 +213,25 @@ export function RichEditor({
       return;
     }
 
+    let active = true;
+    seededRef.current = false;
+
+    void collaborationState.provider.ready.finally(() => {
+      if (active) {
+        setReadyProvider(collaborationState.provider);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [collaborationState]);
+
+  useEffect(() => {
+    if (!collaborationState) {
+      return;
+    }
+
     const updateUsers = () => setActiveUsersVersion((version) => version + 1);
     collaborationState.provider.awareness.on("update", updateUsers);
 
@@ -218,32 +241,45 @@ export function RichEditor({
   }, [collaborationState]);
 
   const saveContent = useCallback(
-    async (content: JSONContent) => {
+    async (content: JSONContent, options: ContentSaveOptions = {}) => {
       if (readOnly) {
-        return;
+        return null;
       }
 
-      queuedSaveRef.current = content;
-      setSaveStatus("saving");
-      if (isSavingRef.current) {
-        return;
-      }
+      const verifyingImage = Boolean(options.verifyImageSrc);
+      setSaveStatus(verifyingImage ? "image-saving" : "saving");
+      let verificationFailed = false;
 
-      isSavingRef.current = true;
-      try {
-        while (queuedSaveRef.current) {
-          const nextContent = queuedSaveRef.current;
-          queuedSaveRef.current = null;
-          await onSave(nextContent);
+      const runSave = async () => {
+        const result = await onSave(content, options);
+        await collaborationState?.provider.persistState();
+
+        if (options.verifyImageSrc && !result.verifiedImageSrc) {
+          verificationFailed = true;
+          setSaveStatus("image-unverified");
+          throw new Error("Image non confirmee apres sauvegarde.");
         }
-        setSaveStatus("saved");
-      } catch {
-        setSaveStatus("error");
-      } finally {
-        isSavingRef.current = false;
+
+        setSaveStatus(verifyingImage ? "image-saved" : "saved");
+        return result;
+      };
+
+      const nextSave = saveChainRef.current.then(runSave, runSave);
+      saveChainRef.current = nextSave.then(
+        () => undefined,
+        () => undefined
+      );
+
+      try {
+        return await nextSave;
+      } catch (error) {
+        if (!verificationFailed) {
+          setSaveStatus("error");
+        }
+        throw error;
       }
     },
-    [onSave, readOnly]
+    [collaborationState, onSave, readOnly]
   );
 
   const debouncedSave = useDebouncedCallback(saveContent, collaborationState ? 650 : 1200);
@@ -339,19 +375,6 @@ export function RichEditor({
         }
       })
     ],
-    onCreate: ({ editor: currentEditor }) => {
-      if (!collaborationState || seededRef.current) {
-        return;
-      }
-
-      seededRef.current = true;
-
-      window.setTimeout(() => {
-        if (currentEditor.isEmpty) {
-          currentEditor.commands.setContent(initialContent, { emitUpdate: false });
-        }
-      }, 350);
-    },
     onUpdate: ({ editor: currentEditor }) => {
       debouncedSave.run(currentEditor.getJSON());
     },
@@ -410,6 +433,25 @@ export function RichEditor({
       }
     }
   });
+
+  useEffect(() => {
+    if (!editor || !collaborationState || !collaborationReady || seededRef.current) {
+      return;
+    }
+
+    seededRef.current = true;
+    if (!collaborationState.provider.hasPersistedState && editor.isEmpty) {
+      editor.commands.setContent(initialContent, { emitUpdate: false });
+      if (!readOnly) {
+        const content = editor.getJSON();
+        void onSave(content)
+          .then(() => collaborationState.provider.persistState())
+          .catch(() => {
+            setSaveStatus("error");
+          });
+      }
+    }
+  }, [collaborationReady, collaborationState, editor, initialContent, onSave, readOnly]);
 
   const addLink = () => {
     if (!editor) {
@@ -548,14 +590,31 @@ export function RichEditor({
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const content = editor.getJSON();
       if (hasImageSrc(content, src)) {
-        await saveContent(content);
+        const result = await saveContent(content, { verifyImageSrc: src });
+        if (process.env.NODE_ENV === "development") {
+          console.info("[editor-image]", {
+            uploadedUrl: src,
+            jsonContainsImage: true,
+            serverVerifiedImage: result?.verifiedImageSrc ?? false,
+            savedImageCount: result?.imageSrcs.length ?? 0
+          });
+        }
         return;
       }
 
       await waitForEditorTick();
     }
 
-    await saveContent(editor.getJSON());
+    const content = editor.getJSON();
+    const result = await saveContent(content, { verifyImageSrc: src });
+    if (process.env.NODE_ENV === "development") {
+      console.info("[editor-image]", {
+        uploadedUrl: src,
+        jsonContainsImage: hasImageSrc(content, src),
+        serverVerifiedImage: result?.verifiedImageSrc ?? false,
+        savedImageCount: result?.imageSrcs.length ?? 0
+      });
+    }
   };
 
   const addImageUrl = async () => {
@@ -608,25 +667,33 @@ export function RichEditor({
     }
 
     setUploading(true);
-    const supabase = createClient();
-    const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
-    // eslint-disable-next-line react-hooks/purity
-    const path = `editor-images/${Date.now()}-${safeName}`;
-    const { error } = await supabase.storage.from("project-media").upload(path, file, {
-      cacheControl: "3600",
-      upsert: false
-    });
+    setSaveStatus("image-saving");
 
-    if (!error) {
+    try {
+      const supabase = createClient();
+      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-").toLowerCase();
+      const path = `editor-images/${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from("project-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().setImage({ src: data.publicUrl }).run();
       await persistImageContent(data.publicUrl);
+    } catch (error) {
+      console.error("[editor-image] Upload/save failed", error);
+      setSaveStatus("error");
+    } finally {
+      setUploading(false);
     }
-
-    setUploading(false);
   };
 
-  if (!editor) {
+  if (!editor || (collaborationState && !collaborationReady)) {
     return <div className="min-h-[520px] rounded-lg border border-[var(--border)] bg-[var(--surface)]" />;
   }
 
@@ -884,6 +951,9 @@ export function RichEditor({
         <span>
           {saveStatus === "saving" && "Sauvegarde..."}
           {saveStatus === "saved" && "Sauvegarde auto OK"}
+          {saveStatus === "image-saving" && "Sauvegarde image..."}
+          {saveStatus === "image-saved" && "Image sauvegardee"}
+          {saveStatus === "image-unverified" && "Erreur: image non confirmee"}
           {saveStatus === "error" && "Erreur de sauvegarde"}
           {saveStatus === "idle" && "Pret"}
         </span>

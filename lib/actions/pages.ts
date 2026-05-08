@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
+import { editorRoom, extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
 import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { formString, pageSchema } from "@/lib/validation";
@@ -327,27 +328,58 @@ export async function updatePageMeta(pageId: string, formData: FormData) {
   revalidatePath(`/pages/${pageId}`);
 }
 
-export async function updatePageContent(pageId: string, content: unknown) {
+export async function updatePageContent(
+  pageId: string,
+  content: unknown,
+  options: ContentSaveOptions = {}
+): Promise<ContentSaveResult> {
   const profile = await requireProfile();
   if (!canWrite(profile.role)) {
     throw new Error("Permission refusée.");
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const imageSrcs = extractImageSrcs(content);
+  const { data, error } = await supabase
     .from("pages")
     .update({
       content,
       updated_by: profile.id
     })
-    .eq("id", pageId);
+    .eq("id", pageId)
+    .select("updated_at")
+    .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
+  const { error: stateError } = await supabase.from("editor_collaboration_states").upsert(
+    {
+      room: editorRoom("pages", pageId),
+      target_type: "page",
+      target_id: pageId,
+      content_snapshot: content,
+      image_srcs: imageSrcs,
+      updated_by: profile.id
+    },
+    {
+      onConflict: "room"
+    }
+  );
+
+  if (stateError) {
+    throw new Error(stateError.message);
+  }
+
   revalidatePath("/pages");
   revalidatePath(`/pages/${pageId}`);
+
+  return {
+    updatedAt: data?.updated_at ?? null,
+    imageSrcs,
+    verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
+  };
 }
 
 export async function deletePage(pageId: string) {

@@ -35,7 +35,7 @@ BOOTSTRAP_ADMIN_EMAILS=you@example.com,teammate@example.com
 ## Configuration Supabase
 
 1. Crée un projet Supabase.
-2. Ouvre SQL Editor et exécute `supabase/migrations/0001_initial_workspace.sql`.
+2. Ouvre SQL Editor et exécute les fichiers `supabase/migrations/*.sql` dans l'ordre.
 3. Dans Authentication > Providers, active Google.
 4. Crée tes identifiants OAuth dans Google Cloud Console.
 5. Dans Google Cloud, ajoute les URI de redirection Supabase indiquées dans le provider Google Supabase.

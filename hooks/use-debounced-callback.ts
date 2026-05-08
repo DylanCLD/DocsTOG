@@ -8,7 +8,7 @@ type DebouncedCallback<TArgs extends unknown[]> = {
 };
 
 export function useDebouncedCallback<TArgs extends unknown[]>(
-  callback: (...args: TArgs) => void | Promise<void>,
+  callback: (...args: TArgs) => unknown | Promise<unknown>,
   delay = 900
 ): DebouncedCallback<TArgs> {
   const callbackRef = useRef(callback);
