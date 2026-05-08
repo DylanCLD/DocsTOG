@@ -95,6 +95,18 @@ function userName(profile: Pick<Profile, "email" | "full_name">) {
   return profile.full_name ?? profile.email;
 }
 
+function hasImageSrc(content: JSONContent, src: string): boolean {
+  if (content.type === "image" && content.attrs?.src === src) {
+    return true;
+  }
+
+  return content.content?.some((child) => hasImageSrc(child, src)) ?? false;
+}
+
+function waitForEditorTick() {
+  return new Promise((resolve) => window.setTimeout(resolve, 25));
+}
+
 export function RichEditor({
   value,
   onSave,
@@ -526,20 +538,32 @@ export function RichEditor({
     await createInternalChild(selectedText);
   };
 
-  const persistCurrentContent = async () => {
+  const persistImageContent = async (src: string) => {
     if (!editor) {
       return;
     }
 
     debouncedSave.cancel();
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const content = editor.getJSON();
+      if (hasImageSrc(content, src)) {
+        await saveContent(content);
+        return;
+      }
+
+      await waitForEditorTick();
+    }
+
     await saveContent(editor.getJSON());
   };
 
   const addImageUrl = async () => {
     const url = window.prompt("URL de l'image", "https://");
     if (url?.trim()) {
-      editor?.chain().focus().setImage({ src: url.trim() }).run();
-      await persistCurrentContent();
+      const src = url.trim();
+      editor?.chain().focus().setImage({ src }).run();
+      await persistImageContent(src);
     }
   };
 
@@ -596,7 +620,7 @@ export function RichEditor({
     if (!error) {
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().setImage({ src: data.publicUrl }).run();
-      await persistCurrentContent();
+      await persistImageContent(data.publicUrl);
     }
 
     setUploading(false);
