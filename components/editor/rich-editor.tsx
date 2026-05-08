@@ -44,7 +44,6 @@ import {
   Pilcrow,
   Quote,
   Redo2,
-  Save,
   Search,
   TableIcon,
   UnderlineIcon,
@@ -386,14 +385,6 @@ export function RichEditor({
     }
   });
 
-  const runSave = async () => {
-    if (!editor) {
-      return;
-    }
-
-    await saveContent(editor.getJSON());
-  };
-
   const addLink = () => {
     if (!editor) {
       return;
@@ -581,7 +572,12 @@ export function RichEditor({
     if (!error) {
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().setImage({ src: data.publicUrl }).run();
-      await saveContent(editor.getJSON());
+      await new Promise<void>((resolve) => {
+        setTimeout(async () => {
+          await saveContent(editor.getJSON());
+          resolve();
+        }, 50);
+      });
     }
 
     setUploading(false);
@@ -718,15 +714,6 @@ export function RichEditor({
         <ToolbarButton label="Retablir" disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>
           <Redo2 className="h-4 w-4" />
         </ToolbarButton>
-        <button
-          type="button"
-          onClick={runSave}
-          disabled={readOnly}
-          className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--accent)] px-3 text-sm font-medium text-[#07110f] transition hover:bg-[var(--accent-strong)] disabled:opacity-50"
-        >
-          <Save className="h-4 w-4" />
-          Sauvegarder
-        </button>
       </div>
 
       {!readOnly && currentTarget && (
