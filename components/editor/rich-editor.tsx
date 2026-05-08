@@ -322,7 +322,7 @@ export function RichEditor({
 
       window.setTimeout(() => {
         if (currentEditor.isEmpty) {
-          currentEditor.commands.setContent(initialContent, { emitUpdate: true });
+          currentEditor.commands.setContent(initialContent, { emitUpdate: false });
         }
       }, 350);
     },
@@ -572,12 +572,6 @@ export function RichEditor({
     if (!error) {
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().setImage({ src: data.publicUrl }).run();
-      await new Promise<void>((resolve) => {
-        setTimeout(async () => {
-          await saveContent(editor.getJSON());
-          resolve();
-        }, 50);
-      });
     }
 
     setUploading(false);
