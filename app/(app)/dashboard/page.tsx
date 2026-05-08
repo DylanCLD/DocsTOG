@@ -58,10 +58,18 @@ export default async function DashboardPage() {
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={StickyNote} label="Pages créées" value={pagesCount.count ?? 0} helper="Pages de documentation libre." />
-        <StatCard icon={FileText} label="Documents" value={docsCount.count ?? 0} helper="Documents dans les gestionnaires." />
-        <StatCard icon={CalendarDays} label="Sessions à venir" value={upcomingCount.count ?? 0} helper="Sessions vocales prévues." />
-        <StatCard icon={GalleryVerticalEnd} label="Médias" value={mediaCount.count ?? 0} helper="Images, vidéos et liens utiles." />
+        <Link href="/pages" className="transition hover:opacity-80">
+          <StatCard icon={StickyNote} label="Pages créées" value={pagesCount.count ?? 0} helper="Pages de documentation libre." />
+        </Link>
+        <Link href="/managers" className="transition hover:opacity-80">
+          <StatCard icon={FileText} label="Documents" value={docsCount.count ?? 0} helper="Documents dans les gestionnaires." />
+        </Link>
+        <Link href="/planning" className="transition hover:opacity-80">
+          <StatCard icon={CalendarDays} label="Sessions à venir" value={upcomingCount.count ?? 0} helper="Sessions vocales prévues." />
+        </Link>
+        <Link href="/media" className="transition hover:opacity-80">
+          <StatCard icon={GalleryVerticalEnd} label="Médias" value={mediaCount.count ?? 0} helper="Images, vidéos et liens utiles." />
+        </Link>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">

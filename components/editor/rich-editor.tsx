@@ -581,6 +581,7 @@ export function RichEditor({
     if (!error) {
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().setImage({ src: data.publicUrl }).run();
+      await saveContent(editor.getJSON());
     }
 
     setUploading(false);
