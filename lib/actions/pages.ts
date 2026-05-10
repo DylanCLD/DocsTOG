@@ -333,32 +333,44 @@ export async function updatePageContent(
   content: unknown,
   options: ContentSaveOptions = {}
 ): Promise<ContentSaveResult> {
-  const profile = await requireProfile();
-  if (!canWrite(profile.role)) {
-    throw new Error("Permission refusée.");
+  try {
+    const profile = await requireProfile();
+    if (!canWrite(profile.role)) {
+      throw new Error("Permission refusée.");
+    }
+
+    const supabase = await createClient();
+    const imageSrcs = extractImageSrcs(content);
+    const { data, error } = await supabase
+      .from("pages")
+      .update({
+        content,
+        updated_by: profile.id
+      })
+      .eq("id", pageId)
+      .select("updated_at")
+      .single();
+
+    if (error) {
+      console.error("[updatePageContent] supabase update failed", {
+        pageId,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      throw new Error(error.message);
+    }
+
+    return {
+      updatedAt: data?.updated_at ?? null,
+      imageSrcs,
+      verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
+    };
+  } catch (error) {
+    console.error("[updatePageContent] failed", { pageId, error });
+    throw error;
   }
-
-  const supabase = await createClient();
-  const imageSrcs = extractImageSrcs(content);
-  const { data, error } = await supabase
-    .from("pages")
-    .update({
-      content,
-      updated_by: profile.id
-    })
-    .eq("id", pageId)
-    .select("updated_at")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return {
-    updatedAt: data?.updated_at ?? null,
-    imageSrcs,
-    verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
-  };
 }
 
 export async function deletePage(pageId: string) {
