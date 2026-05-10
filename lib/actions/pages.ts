@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
-import { editorRoom, extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
+import { extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
 import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { formString, pageSchema } from "@/lib/validation";
@@ -352,24 +352,6 @@ export async function updatePageContent(
 
   if (error) {
     throw new Error(error.message);
-  }
-
-  const { error: stateError } = await supabase.from("editor_collaboration_states").upsert(
-    {
-      room: editorRoom("pages", pageId),
-      target_type: "page",
-      target_id: pageId,
-      content_snapshot: content,
-      image_srcs: imageSrcs,
-      updated_by: profile.id
-    },
-    {
-      onConflict: "room"
-    }
-  );
-
-  if (stateError) {
-    throw new Error(stateError.message);
   }
 
   revalidatePath("/pages");

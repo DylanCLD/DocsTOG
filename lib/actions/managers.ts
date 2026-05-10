@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { syncTagsForTarget } from "@/lib/actions/tags";
-import { editorRoom, extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
+import { extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
 import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { documentSchema, formString, managerSchema, nullableString } from "@/lib/validation";
@@ -452,24 +452,6 @@ export async function updateDocumentContent(
 
   if (error) {
     throw new Error(error.message);
-  }
-
-  const { error: stateError } = await supabase.from("editor_collaboration_states").upsert(
-    {
-      room: editorRoom("documents", documentId),
-      target_type: "document",
-      target_id: documentId,
-      content_snapshot: content,
-      image_srcs: imageSrcs,
-      updated_by: profile.id
-    },
-    {
-      onConflict: "room"
-    }
-  );
-
-  if (stateError) {
-    throw new Error(stateError.message);
   }
 
   revalidatePath("/managers");

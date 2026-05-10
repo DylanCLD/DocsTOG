@@ -58,7 +58,6 @@ import { createSubPage } from "@/lib/actions/pages";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import {
   editorRoom,
-  editorTargetType,
   hasImageSrc,
   type ContentSaveOptions,
   type ContentSaveResult
@@ -136,7 +135,6 @@ export function RichEditor({
   const [internalLinkPickerMode, setInternalLinkPickerMode] = useState<InternalLinkPickerMode>("all");
   const [internalLinkError, setInternalLinkError] = useState<string | null>(null);
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
-  const [readyProvider, setReadyProvider] = useState<SupabaseYjsProvider | null>(null);
   const seededRef = useRef(false);
   const internalLinkSelectionRef = useRef<{ from: number; to: number; empty: boolean } | null>(null);
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -175,16 +173,11 @@ export function RichEditor({
     const doc = new Y.Doc();
     const provider = new SupabaseYjsProvider({
       doc,
-      room: editorRoom(collaborationTable, collaborationId),
-      targetId: collaborationId,
-      targetType: editorTargetType(collaborationTable),
-      userId: collaboration.profile.id,
-      writable: !readOnly
+      room: editorRoom(collaborationTable, collaborationId)
     });
 
     return { doc, provider };
-  }, [collaboration, collaborationId, collaborationTable, readOnly]);
-  const collaborationReady = !collaborationState || readyProvider === collaborationState.provider;
+  }, [collaborationId, collaborationTable]);
 
   const activeUsers = useMemo(() => {
     void activeUsersVersion;
@@ -209,22 +202,7 @@ export function RichEditor({
   );
 
   useEffect(() => {
-    if (!collaborationState) {
-      return;
-    }
-
-    let active = true;
     seededRef.current = false;
-
-    void collaborationState.provider.ready.finally(() => {
-      if (active) {
-        setReadyProvider(collaborationState.provider);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
   }, [collaborationState]);
 
   useEffect(() => {
@@ -252,7 +230,6 @@ export function RichEditor({
 
       const runSave = async () => {
         const result = await onSave(content, options);
-        await collaborationState?.provider.persistState();
 
         if (options.verifyImageSrc && !result.verifiedImageSrc) {
           verificationFailed = true;
@@ -279,7 +256,7 @@ export function RichEditor({
         throw error;
       }
     },
-    [collaborationState, onSave, readOnly]
+    [onSave, readOnly]
   );
 
   const debouncedSave = useDebouncedCallback(saveContent, collaborationState ? 650 : 1200);
@@ -435,23 +412,17 @@ export function RichEditor({
   });
 
   useEffect(() => {
-    if (!editor || !collaborationState || !collaborationReady || seededRef.current) {
+    if (!editor || !collaborationState || seededRef.current) {
       return;
     }
 
     seededRef.current = true;
-    if (!collaborationState.provider.hasPersistedState && editor.isEmpty) {
-      editor.commands.setContent(initialContent, { emitUpdate: false });
-      if (!readOnly) {
-        const content = editor.getJSON();
-        void onSave(content)
-          .then(() => collaborationState.provider.persistState())
-          .catch(() => {
-            setSaveStatus("error");
-          });
+    window.setTimeout(() => {
+      if (editor.isEmpty) {
+        editor.commands.setContent(initialContent, { emitUpdate: false });
       }
-    }
-  }, [collaborationReady, collaborationState, editor, initialContent, onSave, readOnly]);
+    }, 350);
+  }, [collaborationState, editor, initialContent]);
 
   const addLink = () => {
     if (!editor) {
@@ -693,7 +664,7 @@ export function RichEditor({
     }
   };
 
-  if (!editor || (collaborationState && !collaborationReady)) {
+  if (!editor) {
     return <div className="min-h-[520px] rounded-lg border border-[var(--border)] bg-[var(--surface)]" />;
   }
 

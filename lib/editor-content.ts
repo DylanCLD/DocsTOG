@@ -1,7 +1,6 @@
 import type { JSONContent } from "@tiptap/core";
 
 export type EditorTargetTable = "pages" | "documents";
-export type EditorTargetType = "page" | "document";
 
 export type ContentSaveOptions = {
   verifyImageSrc?: string;
@@ -12,10 +11,6 @@ export type ContentSaveResult = {
   imageSrcs: string[];
   verifiedImageSrc?: boolean;
 };
-
-export function editorTargetType(table: EditorTargetTable): EditorTargetType {
-  return table === "pages" ? "page" : "document";
-}
 
 export function editorRoom(table: EditorTargetTable, id: string) {
   return `editor-yjs:${table}:${id}`;
