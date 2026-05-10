@@ -354,9 +354,6 @@ export async function updatePageContent(
     throw new Error(error.message);
   }
 
-  revalidatePath("/pages");
-  revalidatePath(`/pages/${pageId}`);
-
   return {
     updatedAt: data?.updated_at ?? null,
     imageSrcs,

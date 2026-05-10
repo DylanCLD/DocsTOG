@@ -454,9 +454,6 @@ export async function updateDocumentContent(
     throw new Error(error.message);
   }
 
-  revalidatePath("/managers");
-  revalidatePath(`/documents/${documentId}`);
-
   return {
     updatedAt: data?.updated_at ?? null,
     imageSrcs,
