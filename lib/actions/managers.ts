@@ -433,14 +433,29 @@ export async function updateDocumentContent(
   content: unknown,
   options: ContentSaveOptions = {}
 ): Promise<ContentSaveResult> {
+  console.info("[updateDocumentContent] START", { documentId });
   try {
+    console.info("[updateDocumentContent] step:requireProfile");
     const profile = await requireProfile();
+    console.info("[updateDocumentContent] step:requireProfile OK", { role: profile.role });
+
     if (!canWrite(profile.role)) {
+      console.info("[updateDocumentContent] step:permission refused");
       throw new Error("Permission refusée.");
     }
 
+    console.info("[updateDocumentContent] step:createClient");
     const supabase = await createClient();
+    console.info("[updateDocumentContent] step:createClient OK");
+
+    console.info("[updateDocumentContent] step:extractImageSrcs", {
+      contentType: typeof content,
+      contentKeys: content && typeof content === "object" ? Object.keys(content as object).length : 0
+    });
     const imageSrcs = extractImageSrcs(content);
+    console.info("[updateDocumentContent] step:extractImageSrcs OK", { count: imageSrcs.length });
+
+    console.info("[updateDocumentContent] step:supabase update");
     const { data, error } = await supabase
       .from("documents")
       .update({
@@ -450,6 +465,7 @@ export async function updateDocumentContent(
       .eq("id", documentId)
       .select("updated_at")
       .single();
+    console.info("[updateDocumentContent] step:supabase update returned", { hasError: Boolean(error), hasData: Boolean(data) });
 
     if (error) {
       console.error("[updateDocumentContent] supabase update failed", {
@@ -462,13 +478,18 @@ export async function updateDocumentContent(
       throw new Error(error.message);
     }
 
+    console.info("[updateDocumentContent] step:return result");
     return {
       updatedAt: data?.updated_at ?? null,
       imageSrcs,
       verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
     };
   } catch (error) {
-    console.error("[updateDocumentContent] failed", { documentId, error });
+    console.error("[updateDocumentContent] FAILED", {
+      documentId,
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }

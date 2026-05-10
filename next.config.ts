@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["yjs", "y-protocols", "lib0"],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "4mb"
+    }
+  },
   images: {
     remotePatterns: [
       {

@@ -333,14 +333,29 @@ export async function updatePageContent(
   content: unknown,
   options: ContentSaveOptions = {}
 ): Promise<ContentSaveResult> {
+  console.info("[updatePageContent] START", { pageId });
   try {
+    console.info("[updatePageContent] step:requireProfile");
     const profile = await requireProfile();
+    console.info("[updatePageContent] step:requireProfile OK", { role: profile.role });
+
     if (!canWrite(profile.role)) {
+      console.info("[updatePageContent] step:permission refused");
       throw new Error("Permission refusée.");
     }
 
+    console.info("[updatePageContent] step:createClient");
     const supabase = await createClient();
+    console.info("[updatePageContent] step:createClient OK");
+
+    console.info("[updatePageContent] step:extractImageSrcs", {
+      contentType: typeof content,
+      contentKeys: content && typeof content === "object" ? Object.keys(content as object).length : 0
+    });
     const imageSrcs = extractImageSrcs(content);
+    console.info("[updatePageContent] step:extractImageSrcs OK", { count: imageSrcs.length });
+
+    console.info("[updatePageContent] step:supabase update");
     const { data, error } = await supabase
       .from("pages")
       .update({
@@ -350,6 +365,7 @@ export async function updatePageContent(
       .eq("id", pageId)
       .select("updated_at")
       .single();
+    console.info("[updatePageContent] step:supabase update returned", { hasError: Boolean(error), hasData: Boolean(data) });
 
     if (error) {
       console.error("[updatePageContent] supabase update failed", {
@@ -362,13 +378,18 @@ export async function updatePageContent(
       throw new Error(error.message);
     }
 
+    console.info("[updatePageContent] step:return result");
     return {
       updatedAt: data?.updated_at ?? null,
       imageSrcs,
       verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
     };
   } catch (error) {
-    console.error("[updatePageContent] failed", { pageId, error });
+    console.error("[updatePageContent] FAILED", {
+      pageId,
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }
