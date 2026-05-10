@@ -172,21 +172,26 @@ textarea {
   padding: 0;
 }
 
-.prose-editor ul {
-  list-style-type: disc;
+.prose-editor ul,
+.prose-editor .ProseMirror ul {
+  list-style-type: disc !important;
   padding-left: 1.5rem;
 }
 
-.prose-editor ol {
-  list-style-type: decimal;
+.prose-editor ol,
+.prose-editor .ProseMirror ol {
+  list-style-type: decimal !important;
   padding-left: 1.5rem;
 }
 
-.prose-editor li {
+.prose-editor li,
+.prose-editor .ProseMirror li {
   margin: 0.25rem 0;
+  display: list-item;
 }
 
-.prose-editor li::marker {
+.prose-editor li::marker,
+.prose-editor .ProseMirror li::marker {
   color: var(--muted);
 }
 

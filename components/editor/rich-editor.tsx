@@ -674,7 +674,7 @@ export function RichEditor({
   const childLabel = currentTarget?.type === "document" ? "sous-document" : "sous-page";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       {collaborationState && (
         <div className="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
@@ -690,7 +690,7 @@ export function RichEditor({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--border)] bg-[var(--surface-elevated)] p-2">
+      <div className="sticky top-16 z-10 flex flex-wrap items-center gap-1 border-b border-[var(--border)] bg-[var(--surface-elevated)] p-2">
         <ToolbarButton label="Paragraphe" disabled={toolbarDisabled} onClick={() => editor.chain().focus().setParagraph().run()}>
           <Pilcrow className="h-4 w-4" />
         </ToolbarButton>
