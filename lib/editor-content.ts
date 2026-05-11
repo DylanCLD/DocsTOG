@@ -4,6 +4,7 @@ export type EditorTargetTable = "pages" | "documents";
 
 export type ContentSaveOptions = {
   verifyImageSrc?: string;
+  revalidate?: boolean;
 };
 
 export type ContentSaveResult = {

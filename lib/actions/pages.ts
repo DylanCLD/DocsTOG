@@ -387,6 +387,10 @@ export async function updatePageContent(
       throw new Error(error.message);
     }
 
+    if (options.revalidate) {
+      revalidatePath(`/pages/${pageId}`);
+    }
+
     console.info("[updatePageContent] step:return result");
     return {
       updatedAt: data?.updated_at ?? null,

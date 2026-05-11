@@ -487,6 +487,10 @@ export async function updateDocumentContent(
       throw new Error(error.message);
     }
 
+    if (options.revalidate) {
+      revalidatePath(`/documents/${documentId}`);
+    }
+
     console.info("[updateDocumentContent] step:return result");
     return {
       updatedAt: data?.updated_at ?? null,

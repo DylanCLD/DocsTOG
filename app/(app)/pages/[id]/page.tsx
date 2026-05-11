@@ -12,6 +12,9 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/utils";
 import type { PageRecord } from "@/types";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function PageDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profile = await requireProfile();

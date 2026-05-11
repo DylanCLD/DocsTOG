@@ -81,6 +81,7 @@ const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
 
 const userColors = ["#3dd6b3", "#8fb3ff", "#f3b862", "#f87171", "#65d68a", "#d9a8ff"];
+const IMAGE_AUTOSAVE_PROTECTION_MS = 30_000;
 
 const AsideBlock = Node.create({
   name: "asideBlock",
@@ -119,6 +120,16 @@ function hasAllImageSrcs(content: unknown, srcs: string[]) {
   return srcs.every((src) => currentSrcs.has(src));
 }
 
+function pruneProtectedImageSrcs(protectedImageSrcs: Map<string, number>) {
+  const now = Date.now();
+
+  for (const [src, expiresAt] of protectedImageSrcs) {
+    if (expiresAt <= now) {
+      protectedImageSrcs.delete(src);
+    }
+  }
+}
+
 export function RichEditor({
   value,
   onSave,
@@ -153,6 +164,7 @@ export function RichEditor({
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
   const seededRef = useRef(false);
   const imageOperationRef = useRef(false);
+  const protectedImageSrcsRef = useRef<Map<string, number>>(new Map());
   const internalLinkSelectionRef = useRef<{ from: number; to: number; empty: boolean } | null>(null);
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const router = useRouter();
@@ -378,7 +390,20 @@ export function RichEditor({
     onUpdate: ({ editor: currentEditor }) => {
       if (collaborationState && !seededRef.current) return;
       if (imageOperationRef.current) return;
-      debouncedSave.run(currentEditor.getJSON());
+
+      const content = currentEditor.getJSON();
+      pruneProtectedImageSrcs(protectedImageSrcsRef.current);
+      const missingProtectedImageSrcs = Array.from(protectedImageSrcsRef.current.keys()).filter((src) => !hasImageSrc(content, src));
+
+      if (missingProtectedImageSrcs.length > 0) {
+        console.warn("[editor-image] skipped autosave that would drop recently saved image srcs", {
+          missingProtectedImageSrcs,
+          currentImageSrcs: extractImageSrcs(content)
+        });
+        return;
+      }
+
+      debouncedSave.run(content);
     },
     editorProps: {
       handleClick: (_view, _pos, event) => {
@@ -646,9 +671,13 @@ export function RichEditor({
         if (hasImageSrc(content, src)) {
           console.log("[editor-image] saving with image, attempt", attempt, "content size", JSON.stringify(content).length);
           console.log("[editor-image] first 1000 chars of content being saved:", JSON.stringify(content).substring(0, 1000));
-          await saveContent(content);
+          const result = await saveContent(content, { revalidate: true });
+          protectedImageSrcsRef.current.set(src, Date.now() + IMAGE_AUTOSAVE_PROTECTION_MS);
           debouncedSave.cancel();
-          console.log("[editor-image] save succeeded for src:", src);
+          console.log("[editor-image] save succeeded for src:", src, {
+            savedImageCount: result?.imageSrcs.length ?? 0,
+            serverSawImage: result?.imageSrcs.includes(src) ?? false
+          });
           return;
         }
 

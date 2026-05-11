@@ -12,6 +12,9 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/utils";
 import type { DocumentManager, DocumentRecord, Profile } from "@/types";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type DocumentWithManager = DocumentRecord & { document_managers: DocumentManager };
 
 type NavigationDocumentRow = DocumentTreeRecord & {
