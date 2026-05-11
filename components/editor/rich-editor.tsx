@@ -599,15 +599,12 @@ export function RichEditor({
         void pasteImageSrc(imageSrc);
         return true;
       },
-      handleDoubleClick: (view, pos, event) => {
-        const href = getLinkHrefFromEditorEvent(view, pos, event);
-
-        if (!isInternalEditorHref(href)) {
-          return false;
-        }
-
-        openEditorHref(href);
-        return true;
+      handleDoubleClick: (_view, _pos, event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const href = target?.closest("a[href]")?.getAttribute("href")?.trim();
+        // Supprime la sélection-mot ProseMirror pour les liens internes
+        // (la navigation est gérée par le listener natif dblclick en capture)
+        return Boolean(isInternalEditorHref(href));
       },
       handleKeyDown: (_view, event) => {
         if (!editor || !enableQuickCheckbox || readOnly || (event.key !== " " && event.key !== "Enter")) {
@@ -699,6 +696,25 @@ export function RichEditor({
       window.clearTimeout(t3);
     };
   }, [collaborationState, editor, initialContent, initialImageSrcs]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const dom = editor.view.dom;
+
+    const onDblClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const href = target.closest("a[href]")?.getAttribute("href")?.trim() ?? null;
+      if (!isInternalEditorHref(href)) return;
+
+      openEditorHref(href);
+    };
+
+    dom.addEventListener("dblclick", onDblClick, true);
+    return () => dom.removeEventListener("dblclick", onDblClick, true);
+  }, [editor, openEditorHref]);
 
   const addLink = () => {
     if (!editor) {
