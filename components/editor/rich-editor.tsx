@@ -441,7 +441,12 @@ export function RichEditor({
           doc.firstChild.content.size === 0);
 
       if (isEffectivelyEmpty) {
-        editor.commands.setContent(initialContent, { emitUpdate: false });
+        try {
+          editor.commands.setContent(initialContent, { emitUpdate: false });
+          editor.commands.focus("end");
+        } catch (err) {
+          console.warn("[editor-seed] setContent failed", err);
+        }
       }
       seededRef.current = true;
     };
