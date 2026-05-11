@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { updateDocumentContent, updateDocumentMeta } from "@/lib/actions/managers";
+import { toggleDocumentFavorite, updateDocumentContent, updateDocumentMeta } from "@/lib/actions/managers";
 import { Button } from "@/components/ui/button";
+import { FavoriteButton } from "@/components/ui/favorite-button";
 
 const RichEditor = dynamic(() => import("@/components/editor/rich-editor").then((m) => m.RichEditor), { ssr: false });
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -64,10 +65,15 @@ export function DocumentEditorClient({
               ))}
             </Select>
           </div>
-          <div className="flex items-end">
-            <Button type="submit" disabled={readOnly} className="w-full">
+          <div className="flex items-end gap-2">
+            <Button type="submit" disabled={readOnly} className="flex-1">
               Enregistrer les propriétés
             </Button>
+            <FavoriteButton
+              isFavorite={document.is_favorite ?? false}
+              disabled={readOnly}
+              onToggle={() => toggleDocumentFavorite(document.id, document.is_favorite ?? false, document.manager_id)}
+            />
           </div>
         </div>
       </form>

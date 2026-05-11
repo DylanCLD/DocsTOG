@@ -52,6 +52,7 @@ export type PageRecord = {
   category: string;
   sort_order: number;
   content: Json;
+  is_favorite?: boolean;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -87,6 +88,7 @@ export type DocumentRecord = {
   priority: DocumentPriority;
   responsible_id: string | null;
   content: Json;
+  is_favorite?: boolean;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

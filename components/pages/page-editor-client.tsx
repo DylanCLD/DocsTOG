@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { updatePageContent, updatePageMeta } from "@/lib/actions/pages";
+import { togglePageFavorite, updatePageContent, updatePageMeta } from "@/lib/actions/pages";
 import { Button } from "@/components/ui/button";
+import { FavoriteButton } from "@/components/ui/favorite-button";
 
 const RichEditor = dynamic(() => import("@/components/editor/rich-editor").then((m) => m.RichEditor), { ssr: false });
 import { IconPickerField } from "@/components/ui/icon-picker-field";
@@ -33,9 +34,16 @@ export function PageEditorClient({
             <Label htmlFor="category">Categorie</Label>
             <Input id="category" name="category" defaultValue={page.category} disabled={readOnly} />
           </div>
-          <Button type="submit" disabled={readOnly}>
-            Enregistrer
-          </Button>
+          <div className="flex items-end gap-2">
+            <Button type="submit" disabled={readOnly}>
+              Enregistrer
+            </Button>
+            <FavoriteButton
+              isFavorite={page.is_favorite ?? false}
+              disabled={readOnly}
+              onToggle={() => togglePageFavorite(page.id, page.is_favorite ?? false)}
+            />
+          </div>
         </div>
       </form>
 

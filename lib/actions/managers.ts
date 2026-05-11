@@ -494,6 +494,27 @@ export async function updateDocumentContent(
   }
 }
 
+export async function toggleDocumentFavorite(documentId: string, currentValue: boolean, managerId?: string) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusée.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("documents")
+    .update({ is_favorite: !currentValue, updated_by: profile.id })
+    .eq("id", documentId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/managers");
+  if (managerId) revalidatePath(`/managers/${managerId}`);
+  revalidatePath(`/documents/${documentId}`);
+}
+
 export async function deleteDocument(documentId: string, managerId?: string) {
   const profile = await requireProfile();
   if (!canDelete(profile.role)) {

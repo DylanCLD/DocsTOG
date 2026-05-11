@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  FileText,
   FolderKanban,
   GalleryVerticalEnd,
   LayoutDashboard,
   LogOut,
   Settings,
+  Star,
   StickyNote
 } from "lucide-react";
 import { signOut } from "@/lib/actions/auth";
@@ -25,12 +27,19 @@ const navItems = [
   { href: "/settings", label: "Paramètres", icon: Settings }
 ];
 
+type Favorites = {
+  pages: Array<{ id: string; title: string; icon: string }>;
+  documents: Array<{ id: string; title: string }>;
+};
+
 export function Sidebar({
   profile,
-  settings
+  settings,
+  favorites
 }: {
   profile: Profile;
   settings: WorkspaceSettings | null;
+  favorites?: Favorites;
 }) {
   const pathname = usePathname();
 
@@ -73,6 +82,41 @@ export function Sidebar({
             </Link>
           );
         })}
+
+        {((favorites?.pages?.length ?? 0) > 0 || (favorites?.documents?.length ?? 0) > 0) && (
+          <div className="pt-3">
+            <p className="mb-1 flex items-center gap-1.5 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+              <Star className="h-3 w-3" />
+              Épinglés
+            </p>
+            {favorites?.pages?.map((page) => (
+              <Link
+                key={`fav-page-${page.id}`}
+                href={`/pages/${page.id}`}
+                className={cn(
+                  "flex h-9 items-center gap-2 truncate rounded-lg px-3 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]",
+                  pathname === `/pages/${page.id}` && "bg-[var(--surface-elevated)] text-[var(--text)]"
+                )}
+              >
+                <span className="shrink-0 text-sm">{page.icon}</span>
+                <span className="truncate">{page.title}</span>
+              </Link>
+            ))}
+            {favorites?.documents?.map((doc) => (
+              <Link
+                key={`fav-doc-${doc.id}`}
+                href={`/documents/${doc.id}`}
+                className={cn(
+                  "flex h-9 items-center gap-2 truncate rounded-lg px-3 text-sm text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]",
+                  pathname === `/documents/${doc.id}` && "bg-[var(--surface-elevated)] text-[var(--text)]"
+                )}
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                <span className="truncate">{doc.title}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
 
       <div className="border-t border-[var(--border)] p-3">

@@ -26,13 +26,13 @@ export async function searchWorkspace(query: string): Promise<SearchResult[]> {
     supabase
       .from("pages")
       .select("id,title,category")
-      .or(`title.ilike.${pattern},category.ilike.${pattern}`)
+      .or(`title.ilike.${pattern},category.ilike.${pattern},content::text.ilike.${pattern}`)
       .order("updated_at", { ascending: false })
       .limit(5),
     supabase
       .from("documents")
       .select("id,title,short_description")
-      .or(`title.ilike.${pattern},short_description.ilike.${pattern}`)
+      .or(`title.ilike.${pattern},short_description.ilike.${pattern},content::text.ilike.${pattern}`)
       .order("updated_at", { ascending: false })
       .limit(5),
     supabase

@@ -394,6 +394,26 @@ export async function updatePageContent(
   }
 }
 
+export async function togglePageFavorite(pageId: string, currentValue: boolean) {
+  const profile = await requireProfile();
+  if (!canWrite(profile.role)) {
+    throw new Error("Permission refusée.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("pages")
+    .update({ is_favorite: !currentValue, updated_by: profile.id })
+    .eq("id", pageId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/pages");
+  revalidatePath(`/pages/${pageId}`);
+}
+
 export async function deletePage(pageId: string) {
   const profile = await requireProfile();
   if (!canDelete(profile.role)) {
