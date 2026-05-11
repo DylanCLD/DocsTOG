@@ -62,6 +62,7 @@ import { createSubPage } from "@/lib/actions/pages";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import {
   editorRoom,
+  extractImageSrcs,
   hasImageSrc,
   type ContentSaveOptions,
   type ContentSaveResult
@@ -107,6 +108,15 @@ function userName(profile: Pick<Profile, "email" | "full_name">) {
 
 function waitForEditorTick() {
   return new Promise((resolve) => window.setTimeout(resolve, 50));
+}
+
+function hasAllImageSrcs(content: unknown, srcs: string[]) {
+  if (srcs.length === 0) {
+    return true;
+  }
+
+  const currentSrcs = new Set(extractImageSrcs(content));
+  return srcs.every((src) => currentSrcs.has(src));
 }
 
 export function RichEditor({
@@ -156,6 +166,8 @@ export function RichEditor({
 
     return emptyDoc() as JSONContent;
   }, [value]);
+
+  const initialImageSrcs = useMemo(() => extractImageSrcs(initialContent), [initialContent]);
 
   const filteredInternalTargets = useMemo(() => {
     const normalizedQuery = internalLinkQuery.trim().toLowerCase();
@@ -431,8 +443,15 @@ export function RichEditor({
 
     seededRef.current = false;
 
-    const trySeed = () => {
+    const trySeed = (isFinalAttempt = false) => {
       if (seededRef.current || !editor || editor.isDestroyed) return;
+
+      const currentContent = editor.getJSON();
+      if (initialImageSrcs.length > 0 && hasAllImageSrcs(currentContent, initialImageSrcs)) {
+        seededRef.current = true;
+        return;
+      }
+
       const doc = editor.state.doc;
       const isEffectivelyEmpty =
         doc.childCount === 0 ||
@@ -440,27 +459,51 @@ export function RichEditor({
           doc.firstChild?.type.name === "paragraph" &&
           doc.firstChild.content.size === 0);
 
-      if (isEffectivelyEmpty) {
+      if (isEffectivelyEmpty || isFinalAttempt) {
         try {
-          editor.commands.setContent(initialContent, { emitUpdate: false });
-          editor.commands.focus("end");
+          editor.commands.setContent(initialContent, {
+            emitUpdate: false,
+            errorOnInvalidContent: true
+          });
         } catch (err) {
           console.warn("[editor-seed] setContent failed", err);
+          if (isFinalAttempt) {
+            setSaveStatus("error");
+          }
+          return;
         }
       }
-      seededRef.current = true;
+
+      if (hasAllImageSrcs(editor.getJSON(), initialImageSrcs)) {
+        seededRef.current = true;
+        return;
+      }
+
+      if (isFinalAttempt) {
+        console.error("[editor-seed] initial images missing after seed", {
+          expectedImageCount: initialImageSrcs.length,
+          expectedImageSrcs: initialImageSrcs,
+          currentImageSrcs: extractImageSrcs(editor.getJSON())
+        });
+        setSaveStatus("error");
+        return;
+      }
+
+      if (initialImageSrcs.length === 0) {
+        seededRef.current = true;
+      }
     };
 
-    const t1 = window.setTimeout(trySeed, 100);
-    const t2 = window.setTimeout(trySeed, 600);
-    const t3 = window.setTimeout(trySeed, 1500);
+    const t1 = window.setTimeout(() => trySeed(), 100);
+    const t2 = window.setTimeout(() => trySeed(), 600);
+    const t3 = window.setTimeout(() => trySeed(true), 1500);
 
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
       window.clearTimeout(t3);
     };
-  }, [collaborationState, editor, initialContent]);
+  }, [collaborationState, editor, initialContent, initialImageSrcs]);
 
   const addLink = () => {
     if (!editor) {
@@ -603,7 +646,7 @@ export function RichEditor({
         if (hasImageSrc(content, src)) {
           console.log("[editor-image] saving with image, attempt", attempt, "content size", JSON.stringify(content).length);
           console.log("[editor-image] first 1000 chars of content being saved:", JSON.stringify(content).substring(0, 1000));
-          await saveContent(content);
+          await saveContent(content, { verifyImageSrc: src });
           debouncedSave.cancel();
           console.log("[editor-image] save succeeded for src:", src);
           return;

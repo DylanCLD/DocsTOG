@@ -454,6 +454,16 @@ export async function updateDocumentContent(
     });
     const imageSrcs = extractImageSrcs(content);
     console.info("[updateDocumentContent] step:extractImageSrcs OK", { count: imageSrcs.length });
+    const verifiedImageSrc = options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined;
+
+    if (options.verifyImageSrc && !verifiedImageSrc) {
+      console.warn("[updateDocumentContent] image verification failed before update", {
+        documentId,
+        expectedSrc: options.verifyImageSrc,
+        imageCount: imageSrcs.length
+      });
+      throw new Error("Image non confirmee avant sauvegarde.");
+    }
 
     console.info("[updateDocumentContent] step:supabase update");
     const { data, error } = await supabase
@@ -482,7 +492,7 @@ export async function updateDocumentContent(
     return {
       updatedAt: data?.updated_at ?? null,
       imageSrcs,
-      verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
+      verifiedImageSrc
     };
   } catch (error) {
     console.error("[updateDocumentContent] FAILED", {

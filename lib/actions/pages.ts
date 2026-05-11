@@ -354,6 +354,16 @@ export async function updatePageContent(
     });
     const imageSrcs = extractImageSrcs(content);
     console.info("[updatePageContent] step:extractImageSrcs OK", { count: imageSrcs.length });
+    const verifiedImageSrc = options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined;
+
+    if (options.verifyImageSrc && !verifiedImageSrc) {
+      console.warn("[updatePageContent] image verification failed before update", {
+        pageId,
+        expectedSrc: options.verifyImageSrc,
+        imageCount: imageSrcs.length
+      });
+      throw new Error("Image non confirmee avant sauvegarde.");
+    }
 
     console.info("[updatePageContent] step:supabase update");
     const { data, error } = await supabase
@@ -382,7 +392,7 @@ export async function updatePageContent(
     return {
       updatedAt: data?.updated_at ?? null,
       imageSrcs,
-      verifiedImageSrc: options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined
+      verifiedImageSrc
     };
   } catch (error) {
     console.error("[updatePageContent] FAILED", {
