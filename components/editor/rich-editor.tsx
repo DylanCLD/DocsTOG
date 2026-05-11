@@ -592,16 +592,7 @@ export function RichEditor({
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const content = editor.getJSON();
       if (hasImageSrc(content, src)) {
-        const result = await saveContent(content, { verifyImageSrc: src });
-        if (process.env.NODE_ENV === "development") {
-          console.info("[editor-image]", {
-            uploadedUrl: src,
-            jsonContainsImage: true,
-            serverVerifiedImage: result?.verifiedImageSrc ?? false,
-            savedImageCount: result?.imageSrcs.length ?? 0,
-            attempts: attempt + 1
-          });
-        }
+        await saveContent(content);
         return;
       }
 
