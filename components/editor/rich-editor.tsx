@@ -596,14 +596,19 @@ export function RichEditor({
       for (let attempt = 0; attempt < 60; attempt += 1) {
         const content = editor.getJSON();
         if (hasImageSrc(content, src)) {
+          console.log("[editor-image] saving with image, attempt", attempt, "content size", JSON.stringify(content).length);
+          console.log("[editor-image] first 1000 chars of content being saved:", JSON.stringify(content).substring(0, 1000));
           await saveContent(content);
           debouncedSave.cancel();
+          console.log("[editor-image] save succeeded for src:", src);
           return;
         }
 
         await waitForEditorTick();
       }
 
+      console.warn("[editor-image] timeout — getJSON never contained src:", src);
+      console.warn("[editor-image] final getJSON:", JSON.stringify(editor.getJSON()).substring(0, 1000));
       setSaveStatus("image-unverified");
       throw new Error("L'image n'a pas pu etre inseree dans l'editeur (timeout). Reessaie.");
     } finally {
@@ -617,7 +622,7 @@ export function RichEditor({
     const url = window.prompt("URL de l'image", "https://");
     if (url?.trim()) {
       const src = url.trim();
-      editor?.chain().focus().setImage({ src }).run();
+      editor?.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
       await persistImageContent(src);
     }
   };
@@ -679,7 +684,8 @@ export function RichEditor({
       }
 
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
-      editor.chain().focus().setImage({ src: data.publicUrl }).run();
+      editor.chain().focus().insertContent({ type: "image", attrs: { src: data.publicUrl } }).run();
+      console.log("[editor-image] inserted, getJSON snippet:", JSON.stringify(editor.getJSON()).substring(0, 800));
       await persistImageContent(data.publicUrl);
     } catch (error) {
       console.error("[editor-image] Upload/save failed", error);
