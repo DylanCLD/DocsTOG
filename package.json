@@ -45,6 +45,15 @@
     "yjs": "^13.6.23",
     "zod": "^3.24.1"
   },
+  "overrides": {
+    "@tiptap/extension-mention": {
+      "@tiptap/core": "^3.22.4",
+      "@tiptap/suggestion": "^3.22.4"
+    },
+    "@tiptap/suggestion": {
+      "@tiptap/core": "^3.22.4"
+    }
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.5",
