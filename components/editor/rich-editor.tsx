@@ -111,6 +111,60 @@ function waitForEditorTick() {
   return new Promise((resolve) => window.setTimeout(resolve, 50));
 }
 
+function getPastedImageFile(clipboardData: DataTransfer | null) {
+  if (!clipboardData) {
+    return null;
+  }
+
+  const file = Array.from(clipboardData.files).find((item) => item.type.startsWith("image/"));
+  if (file) {
+    return file;
+  }
+
+  const fileItem = Array.from(clipboardData.items).find((item) => item.kind === "file" && item.type.startsWith("image/"));
+  return fileItem?.getAsFile() ?? null;
+}
+
+function getPastedImageSrc(clipboardData: DataTransfer | null) {
+  if (!clipboardData) {
+    return null;
+  }
+
+  const html = clipboardData.getData("text/html");
+  if (html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const src = doc.querySelector("img[src]")?.getAttribute("src")?.trim();
+    if (src) {
+      return src;
+    }
+  }
+
+  const text = clipboardData.getData("text/plain").trim();
+  return text.startsWith("data:image/") ? text : null;
+}
+
+function imageExtensionFromMime(mime: string) {
+  const subtype = mime.split("/")[1]?.toLowerCase().split("+")[0] ?? "png";
+  return subtype === "jpeg" ? "jpg" : subtype.replace(/[^a-z0-9]/g, "") || "png";
+}
+
+function imageFileFromDataUrl(src: string) {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(src);
+  if (!match) {
+    return null;
+  }
+
+  const [, mime, base64] = match;
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new File([bytes], `pasted-image-${Date.now()}.${imageExtensionFromMime(mime)}`, { type: mime });
+}
+
 function hasAllImageSrcs(content: unknown, srcs: string[]) {
   if (srcs.length === 0) {
     return true;
@@ -428,6 +482,27 @@ export function RichEditor({
 
         return true;
       },
+      handlePaste: (_view, event) => {
+        if (!editor || readOnly) {
+          return false;
+        }
+
+        const imageFile = getPastedImageFile(event.clipboardData);
+        if (imageFile) {
+          event.preventDefault();
+          void uploadImage(imageFile);
+          return true;
+        }
+
+        const imageSrc = getPastedImageSrc(event.clipboardData);
+        if (!imageSrc) {
+          return false;
+        }
+
+        event.preventDefault();
+        void pasteImageSrc(imageSrc);
+        return true;
+      },
       handleDoubleClick: (_view, _pos, event) => {
         const element = event.target instanceof Element ? event.target : null;
         const anchor = element?.closest("a[href]");
@@ -703,6 +778,21 @@ export function RichEditor({
       editor?.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
       await persistImageContent(src);
     }
+  };
+
+  const pasteImageSrc = async (src: string) => {
+    if (!editor) {
+      return;
+    }
+
+    const pastedFile = src.startsWith("data:image/") ? imageFileFromDataUrl(src) : null;
+    if (pastedFile) {
+      await uploadImage(pastedFile);
+      return;
+    }
+
+    editor.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
+    await persistImageContent(src);
   };
 
   const addYoutube = () => {
