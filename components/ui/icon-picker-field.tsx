@@ -15,50 +15,50 @@ const iconOptions: IconOption[] = [
   { icon: "📄", label: "Page", keywords: "page document note papier", category: "Documents" },
   { icon: "📁", label: "Dossier", keywords: "dossier gestionnaire folder", category: "Documents" },
   { icon: "📝", label: "Notes", keywords: "note texte ecriture", category: "Documents" },
-  { icon: "📚", label: "Bibliotheque", keywords: "docs livres wiki", category: "Documents" },
-  { icon: "📌", label: "Epingle", keywords: "important pinned", category: "Documents" },
+  { icon: "📚", label: "Bibliothèque", keywords: "docs livres wiki", category: "Documents" },
+  { icon: "📌", label: "Épinglé", keywords: "important pinned", category: "Documents" },
   { icon: "✅", label: "Checklist", keywords: "todo tache check", category: "Documents" },
-  { icon: "⚙️", label: "Systeme", keywords: "systeme mecanique config", category: "Projet" },
+  { icon: "⚙️", label: "Système", keywords: "systeme mecanique config", category: "Projet" },
   { icon: "🎮", label: "Game Design", keywords: "jeu gameplay design", category: "Projet" },
-  { icon: "⚖️", label: "Equilibrage", keywords: "balance equilibrage valeur", category: "Projet" },
-  { icon: "🧭", label: "Quetes", keywords: "quete objectif mission", category: "Projet" },
+  { icon: "⚖️", label: "Équilibrage", keywords: "balance equilibrage valeur", category: "Projet" },
+  { icon: "🧭", label: "Quêtes", keywords: "quete objectif mission", category: "Projet" },
   { icon: "👑", label: "Boss", keywords: "boss roi combat", category: "Projet" },
   { icon: "🎒", label: "Items", keywords: "item objet inventaire", category: "Projet" },
   { icon: "🗺️", label: "Maps", keywords: "map carte monde zone", category: "Projet" },
   { icon: "🧩", label: "UI UX", keywords: "interface ux ui puzzle", category: "Projet" },
-  { icon: "💡", label: "Idee", keywords: "idee inspiration lumiere", category: "Projet" },
+  { icon: "💡", label: "Idée", keywords: "idee inspiration lumiere", category: "Projet" },
   { icon: "🐞", label: "Bug", keywords: "bug erreur correction", category: "Projet" },
   { icon: "📜", label: "Lore", keywords: "lore histoire parchemin", category: "Projet" },
-  { icon: "🛡️", label: "Defense", keywords: "shield armure protection", category: "Gameplay" },
+  { icon: "🛡️", label: "Défense", keywords: "shield armure protection", category: "Gameplay" },
   { icon: "⚔️", label: "Combat", keywords: "combat epee attaque", category: "Gameplay" },
   { icon: "🏹", label: "Distance", keywords: "arc distance ranged", category: "Gameplay" },
   { icon: "🪄", label: "Magie", keywords: "magie sort spell", category: "Gameplay" },
-  { icon: "💰", label: "Economie", keywords: "argent monnaie economie", category: "Gameplay" },
+  { icon: "💰", label: "Économie", keywords: "argent monnaie economie", category: "Gameplay" },
   { icon: "🔨", label: "Craft", keywords: "craft forge outil", category: "Gameplay" },
   { icon: "🧪", label: "Potion", keywords: "potion alchimie test", category: "Gameplay" },
   { icon: "📈", label: "Progression", keywords: "stats progression courbe", category: "Gameplay" },
-  { icon: "🌲", label: "Foret", keywords: "foret nature biome", category: "Monde" },
+  { icon: "🌲", label: "Forêt", keywords: "foret nature biome", category: "Monde" },
   { icon: "🏔️", label: "Montagne", keywords: "montagne biome neige", category: "Monde" },
-  { icon: "🏜️", label: "Desert", keywords: "desert sable biome", category: "Monde" },
-  { icon: "🌊", label: "Ocean", keywords: "eau mer ocean", category: "Monde" },
-  { icon: "🏰", label: "Chateau", keywords: "chateau ville fort", category: "Monde" },
+  { icon: "🏜️", label: "Désert", keywords: "desert sable biome", category: "Monde" },
+  { icon: "🌊", label: "Océan", keywords: "eau mer ocean", category: "Monde" },
+  { icon: "🏰", label: "Château", keywords: "chateau ville fort", category: "Monde" },
   { icon: "🕳️", label: "Donjon", keywords: "donjon cave souterrain", category: "Monde" },
   { icon: "🚪", label: "Portail", keywords: "porte portail acces", category: "Monde" },
-  { icon: "🔥", label: "Feu", keywords: "feu danger chaud", category: "Etat" },
-  { icon: "❄️", label: "Glace", keywords: "glace froid neige", category: "Etat" },
-  { icon: "⚡", label: "Eclair", keywords: "eclair energie rapide", category: "Etat" },
-  { icon: "🩸", label: "Danger", keywords: "danger degat sang", category: "Etat" },
-  { icon: "🔒", label: "Verrouille", keywords: "lock prive securite", category: "Etat" },
-  { icon: "🔓", label: "Ouvert", keywords: "unlock ouvert acces", category: "Etat" },
-  { icon: "⭐", label: "Important", keywords: "favori star important", category: "Etat" },
-  { icon: "🚧", label: "Travaux", keywords: "wip chantier construction", category: "Etat" }
+  { icon: "🔥", label: "Feu", keywords: "feu danger chaud", category: "État" },
+  { icon: "❄️", label: "Glace", keywords: "glace froid neige", category: "État" },
+  { icon: "⚡", label: "Éclair", keywords: "eclair energie rapide", category: "État" },
+  { icon: "🩸", label: "Danger", keywords: "danger degat sang", category: "État" },
+  { icon: "🔒", label: "Verrouillé", keywords: "lock prive securite", category: "État" },
+  { icon: "🔓", label: "Ouvert", keywords: "unlock ouvert acces", category: "État" },
+  { icon: "⭐", label: "Important", keywords: "favori star important", category: "État" },
+  { icon: "🚧", label: "Travaux", keywords: "wip chantier construction", category: "État" }
 ];
 
 const categories = ["Tous", ...Array.from(new Set(iconOptions.map((option) => option.category)))];
 
 export function IconPickerField({
   name = "icon",
-  label = "Icone",
+  label = "Icône",
   defaultValue = "📄",
   disabled = false,
   className
@@ -111,7 +111,7 @@ export function IconPickerField({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Rechercher une icone..."
+              placeholder="Rechercher une icône..."
               className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
             />
           </div>

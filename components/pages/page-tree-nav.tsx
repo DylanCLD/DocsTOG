@@ -128,7 +128,7 @@ export function PageTreeNav({
         </div>
       )}
       {roots.length === 0 ? (
-        <p className="rounded-md border border-[var(--border)] px-3 py-5 text-center text-sm text-[var(--muted)]">Aucune page trouvee.</p>
+        <p className="rounded-md border border-[var(--border)] px-3 py-5 text-center text-sm text-[var(--muted)]">Aucune page trouvée.</p>
       ) : roots.map((node) => (
         <PageTreeNode
           key={node.item.id}

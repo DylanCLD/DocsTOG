@@ -183,7 +183,7 @@ function imageFileFromDataUrl(src: string) {
 
 function formatSavedAt(date: Date | null) {
   if (!date) {
-    return "Pret";
+    return "Prêt";
   }
 
   return `Sauvegarde ${date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
@@ -394,7 +394,7 @@ export function RichEditor({
         if (options.verifyImageSrc && !result.verifiedImageSrc) {
           verificationFailed = true;
           setSaveStatus("image-unverified");
-          throw new Error("Image non confirmee apres sauvegarde.");
+          throw new Error("Image non confirmée après sauvegarde.");
         }
 
         const savedAt = new Date();
@@ -506,7 +506,7 @@ export function RichEditor({
       AsideBlock,
       Typography,
       Placeholder.configure({
-        placeholder: "Ecris ici, ajoute des blocs, colle des liens YouTube, structure ton projet..."
+        placeholder: "Écris ici, ajoute des blocs, colle des liens YouTube, structure ton projet..."
       }),
       DragHandle.configure({
         render: () => {
@@ -781,13 +781,13 @@ export function RichEditor({
 
   const createInternalChild = async (title: string) => {
     if (!currentTarget) {
-      setInternalLinkError("Ouvre une page ou un document pour creer un enfant.");
+      setInternalLinkError("Ouvre une page ou un document pour créer un enfant.");
       return;
     }
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setInternalLinkError("Selectionne un texte pour creer un enfant.");
+      setInternalLinkError("Sélectionne un texte pour créer un enfant.");
       return;
     }
 
@@ -806,7 +806,7 @@ export function RichEditor({
       }
       router.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Creation impossible.";
+      const message = error instanceof Error ? error.message : "Création impossible.";
       setInternalLinkError(message);
       notify(message, "error");
     } finally {
@@ -839,16 +839,16 @@ export function RichEditor({
       for (let attempt = 0; attempt < 60; attempt += 1) {
         const content = editor.getJSON();
         if (hasImageSrc(content, src)) {
-          console.log("[editor-image] saving with image, attempt", attempt, "content size", JSON.stringify(content).length);
-          console.log("[editor-image] first 1000 chars of content being saved:", JSON.stringify(content).substring(0, 1000));
           const result = await saveContent(content, { revalidate: true });
           protectedImageSrcsRef.current.set(src, Date.now() + IMAGE_AUTOSAVE_PROTECTION_MS);
           debouncedSave.cancel();
-          console.log("[editor-image] save succeeded for src:", src, {
-            savedImageCount: result?.imageSrcs.length ?? 0,
-            serverSawImage: result?.imageSrcs.includes(src) ?? false
-          });
-          notify("Image sauvegardee", "success");
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[editor-image] save succeeded", {
+              savedImageCount: result?.imageSrcs.length ?? 0,
+              serverSawImage: result?.imageSrcs.includes(src) ?? false
+            });
+          }
+          notify("Image sauvegardée", "success");
           return;
         }
 
@@ -858,8 +858,8 @@ export function RichEditor({
       console.warn("[editor-image] timeout — getJSON never contained src:", src);
       console.warn("[editor-image] final getJSON:", JSON.stringify(editor.getJSON()).substring(0, 1000));
       setSaveStatus("image-unverified");
-      notify("Image non confirmee dans l'editeur", "error");
-      throw new Error("L'image n'a pas pu etre inseree dans l'editeur (timeout). Reessaie.");
+      notify("Image non confirmée dans l'éditeur", "error");
+      throw new Error("L'image n'a pas pu être insérée dans l'éditeur (timeout). Réessaie.");
     } finally {
       window.setTimeout(() => {
         imageOperationRef.current = false;
@@ -960,7 +960,6 @@ export function RichEditor({
 
       const { data } = supabase.storage.from("project-media").getPublicUrl(path);
       editor.chain().focus().insertContent({ type: "image", attrs: { src: data.publicUrl } }).run();
-      console.log("[editor-image] inserted, getJSON snippet:", JSON.stringify(editor.getJSON()).substring(0, 800));
       await persistImageContent(data.publicUrl);
     } catch (error) {
       console.error("[editor-image] Upload/save failed", error);
@@ -996,7 +995,7 @@ export function RichEditor({
           : saveStatus === "image-saved"
             ? formatSavedAt(lastSavedAt)
             : saveStatus === "image-unverified"
-              ? "Image non confirmee"
+              ? "Image non confirmée"
               : saveStatus === "error"
                 ? "Erreur de sauvegarde"
                 : formatSavedAt(lastSavedAt);
@@ -1008,7 +1007,7 @@ export function RichEditor({
 
     try {
       await navigator.clipboard.writeText(activeImageSrc);
-      notify("URL de l'image copiee", "success");
+      notify("URL de l'image copiée", "success");
     } catch {
       notify("Copie impossible depuis ce navigateur", "error");
     }
@@ -1052,7 +1051,7 @@ export function RichEditor({
 
     try {
       await navigator.clipboard.writeText(href.trim());
-      notify("Lien copie", "success");
+      notify("Lien copié", "success");
     } catch {
       notify("Copie impossible depuis ce navigateur", "error");
     }
@@ -1066,7 +1065,7 @@ export function RichEditor({
     try {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       await saveContent(editor.getJSON());
-      notify("Lien retire", "success");
+      notify("Lien retiré", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de retirer le lien.";
       notify(message, "error");
@@ -1074,8 +1073,8 @@ export function RichEditor({
   };
 
   return (
-    <div className="flex gap-6 items-start">
-    <div className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+    <div className="min-w-0 w-full flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       {collaborationState && (
         <div className="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
@@ -1087,7 +1086,7 @@ export function RichEditor({
               </strong>
             )}
           </div>
-          <span className="text-xs text-[var(--muted)]">Sauvegarde auto en arriere-plan</span>
+          <span className="text-xs text-[var(--muted)]">Sauvegarde auto en arrière-plan</span>
         </div>
       )}
 
@@ -1261,7 +1260,7 @@ export function RichEditor({
             onClick={() => void createInternalChildFromSelection()}
             className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface-elevated)] disabled:opacity-50"
           >
-            {creatingInternalLink ? "Creation..." : `Creer ${childLabel}`}
+            {creatingInternalLink ? "Création..." : `Créer ${childLabel}`}
           </button>
           <button
             type="button"
@@ -1280,7 +1279,7 @@ export function RichEditor({
             <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">
               <div>
                 <h2 className="text-sm font-semibold">Lien interne</h2>
-                <p className="mt-0.5 text-xs text-[var(--muted)]">Lie le texte selectionne a une page ou un document.</p>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">Lie le texte sélectionné à une page ou un document.</p>
               </div>
               <button
                 type="button"
@@ -1324,7 +1323,7 @@ export function RichEditor({
                   </button>
                 </div>
               ) : (
-                <p className="text-sm text-[var(--muted)]">Choisis la page a relier au texte selectionne.</p>
+                <p className="text-sm text-[var(--muted)]">Choisis la page à relier au texte sélectionné.</p>
               )}
 
               <div className="space-y-3">
@@ -1339,7 +1338,7 @@ export function RichEditor({
                 </div>
                 <div className="max-h-80 overflow-y-auto rounded-lg border border-[var(--border)]">
                   {filteredInternalTargets.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-sm text-[var(--muted)]">Aucune cible trouvee.</p>
+                    <p className="px-3 py-6 text-center text-sm text-[var(--muted)]">Aucune cible trouvée.</p>
                   ) : (
                     filteredInternalTargets.map((target) => (
                       <button
@@ -1402,7 +1401,7 @@ export function RichEditor({
       }
 
       <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--muted)]">
-        <span>Glisse les poignees a gauche des blocs pour reorganiser le contenu.</span>
+        <span>Glisse les poignées à gauche des blocs pour réorganiser le contenu.</span>
         <span className={cn(saveStatus === "error" && "text-red-300", saveStatus === "image-saving" && "text-[var(--accent)]")}>
           {statusText}
         </span>

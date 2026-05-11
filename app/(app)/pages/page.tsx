@@ -32,7 +32,7 @@ export default async function PagesPage() {
         <p className="text-sm font-medium text-[var(--accent)]">Documentation libre</p>
         <h1 className="mt-1 text-3xl font-semibold">Pages</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-          Cree des pages riches pour idees, notes de reunion, references et decisions de projet.
+          Crée des pages riches pour idées, notes de réunion, références et décisions de projet.
         </p>
       </div>
 
@@ -45,12 +45,12 @@ export default async function PagesPage() {
               <Input id="title" name="title" placeholder="Nouvelle page de design..." required />
             </div>
             <div>
-              <Label htmlFor="category">Categorie</Label>
+              <Label htmlFor="category">Catégorie</Label>
               <Input id="category" name="category" defaultValue="General" />
             </div>
-            <SubmitButton pendingLabel="Creation...">
+            <SubmitButton pendingLabel="Création...">
               <FilePlus2 className="h-4 w-4" />
-              Creer
+              Créer
             </SubmitButton>
           </div>
         </form>
@@ -59,8 +59,8 @@ export default async function PagesPage() {
       {pages.length === 0 ? (
         <EmptyState
           icon={StickyNote}
-          title="Aucune page creee"
-          description="Commence par creer une page pour documenter une idee, une decision ou un systeme."
+          title="Aucune page créée"
+          description="Commence par créer une page pour documenter une idée, une décision ou un système."
         />
       ) : (
         <PageTreeNav pages={pages} defaultOpenAll canReorder={writer} onReorder={updatePageOrder} onMove={movePageInTree} />

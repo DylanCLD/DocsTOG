@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { ToastProvider } from "@/components/ui/toast-provider";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { WorkspaceSettings } from "@/types";
@@ -21,12 +22,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[18rem_1fr]">
-      <Sidebar profile={profile} settings={(settingsResult.data as WorkspaceSettings | null) ?? null} favorites={favorites} />
-      <div className="min-w-0">
-        <Topbar />
-        <main className="w-full px-4 py-6 lg:px-8">{children}</main>
+    <ToastProvider>
+      <div className="min-h-dvh lg:grid lg:grid-cols-[18rem_1fr]">
+        <Sidebar profile={profile} settings={(settingsResult.data as WorkspaceSettings | null) ?? null} favorites={favorites} />
+        <div className="min-w-0">
+          <Topbar />
+          <main className="w-full px-4 py-6 lg:px-8">{children}</main>
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 }

@@ -69,8 +69,8 @@ export function UserMultiSelect({
             <UsersRound className="h-4 w-4 text-[var(--accent)]" />
             <span className="truncate text-[var(--muted)]">
               {selectedEmails.size === 0
-                ? "Selectionner des personnes"
-                : `${selectedEmails.size} personne${selectedEmails.size > 1 ? "s" : ""} selectionnee${selectedEmails.size > 1 ? "s" : ""}`}
+                ? "Sélectionner des personnes"
+                : `${selectedEmails.size} personne${selectedEmails.size > 1 ? "s" : ""} sélectionnée${selectedEmails.size > 1 ? "s" : ""}`}
             </span>
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)] transition group-open:rotate-180" />
@@ -132,7 +132,7 @@ export function UserMultiSelect({
             })}
 
             {filteredUsers.length === 0 && (
-              <p className="px-2 py-4 text-center text-sm text-[var(--muted)]">Aucun utilisateur trouve.</p>
+              <p className="px-2 py-4 text-center text-sm text-[var(--muted)]">Aucun utilisateur trouvé.</p>
             )}
           </div>
         </div>

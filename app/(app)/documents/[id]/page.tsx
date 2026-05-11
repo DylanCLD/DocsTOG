@@ -147,7 +147,7 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
             <h1 className="mt-1 text-3xl font-semibold">{document.title}</h1>
             <p className="mt-2 flex items-center gap-2 text-sm text-[var(--muted)]">
               <CalendarClock className="h-4 w-4" />
-              Cree {formatDateTime(document.created_at)} - modifie {formatDateTime(document.updated_at)}
+              Créé {formatDateTime(document.created_at)} · modifié {formatDateTime(document.updated_at)}
             </p>
           </div>
           {canDelete(profile.role) && <DeleteButton action={deleteDocument.bind(null, document.id, document.manager_id)} />}

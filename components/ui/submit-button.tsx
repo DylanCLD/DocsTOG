@@ -3,6 +3,7 @@
 import type React from "react";
 import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { useActionFormStatus } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 
 type SubmitButtonProps = {
@@ -20,7 +21,9 @@ export function SubmitButton({
   variant,
   size
 }: SubmitButtonProps) {
-  const { pending } = useFormStatus();
+  const actionFormStatus = useActionFormStatus();
+  const { pending: nativePending } = useFormStatus();
+  const pending = actionFormStatus?.pending ?? nativePending;
 
   return (
     <Button type="submit" className={className} variant={variant} size={size} disabled={pending}>

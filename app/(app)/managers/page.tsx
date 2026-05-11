@@ -25,25 +25,25 @@ export default async function ManagersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm font-medium text-[var(--accent)]">Documents structures</p>
+        <p className="text-sm font-medium text-[var(--accent)]">Documents structurés</p>
         <h1 className="mt-1 text-3xl font-semibold">Gestionnaires</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-          Organise les systemes, le lore, les maps, les bugs et toutes les grandes zones du projet.
+          Organise les systèmes, le lore, les maps, les bugs et toutes les grandes zones du projet.
         </p>
       </div>
 
       {canWrite(profile.role) && (
         <details className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-          <summary className="cursor-pointer text-sm font-semibold">Creer un gestionnaire</summary>
+          <summary className="cursor-pointer text-sm font-semibold">Créer un gestionnaire</summary>
           <form action={createManager} className="mt-4 grid gap-3 md:grid-cols-[10rem_1fr_auto] md:items-end">
             <IconPickerField defaultValue="📁" />
             <div>
               <Label htmlFor="name">Nom</Label>
-              <Input id="name" name="name" placeholder="Systeme, Lore, Bugs..." required />
+              <Input id="name" name="name" placeholder="Système, Lore, Bugs..." required />
             </div>
-            <SubmitButton pendingLabel="Creation...">
+            <SubmitButton pendingLabel="Création...">
               <Plus className="h-4 w-4" />
-              Creer
+              Créer
             </SubmitButton>
             <div className="md:col-span-3">
               <Label htmlFor="description">Description</Label>
@@ -54,7 +54,7 @@ export default async function ManagersPage() {
       )}
 
       {managers.length === 0 ? (
-        <EmptyState icon={FolderKanban} title="Aucun gestionnaire" description="La migration fournit un seed de base; tu peux aussi creer tes propres gestionnaires ici." />
+        <EmptyState icon={FolderKanban} title="Aucun gestionnaire" description="La migration fournit un seed de base; tu peux aussi créer tes propres gestionnaires ici." />
       ) : (
         <ManagersListClient managers={managers} />
       )}

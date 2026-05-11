@@ -60,7 +60,7 @@ export async function createPage(formData: FormData) {
   }
 
   if (!data) {
-    throw new Error("Creation de la page impossible.");
+    throw new Error("Création de la page impossible.");
   }
 
   revalidatePath("/pages");
@@ -134,7 +134,7 @@ export async function createSubPage(parentPageId: string, title: string) {
   }
 
   if (!data) {
-    throw new Error("Creation de la sous-page impossible.");
+    throw new Error("Création de la sous-page impossible.");
   }
 
   revalidatePath("/pages");

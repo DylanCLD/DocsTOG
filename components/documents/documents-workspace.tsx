@@ -130,7 +130,7 @@ export function DocumentsWorkspace({
               </Select>
             </div>
             <div className="flex items-end">
-              <SubmitButton className="w-full" pendingLabel="Creation...">
+              <SubmitButton className="w-full" pendingLabel="Création...">
                 <Plus className="h-4 w-4" />
                 Créer le document
               </SubmitButton>

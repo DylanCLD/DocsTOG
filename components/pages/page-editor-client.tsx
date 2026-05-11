@@ -33,7 +33,7 @@ export function PageEditorClient({
             <Input id="title" name="title" defaultValue={page.title} disabled={readOnly} />
           </div>
           <div>
-            <Label htmlFor="category">Categorie</Label>
+            <Label htmlFor="category">Catégorie</Label>
             <Input id="category" name="category" defaultValue={page.category} disabled={readOnly} />
           </div>
           <div className="flex items-end gap-2">

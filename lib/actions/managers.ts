@@ -122,7 +122,7 @@ export async function createDocument(managerId: string, formData: FormData) {
   }
 
   if (!data) {
-    throw new Error("Creation du document impossible.");
+    throw new Error("Création du document impossible.");
   }
 
   await syncTagsForTarget({
@@ -209,7 +209,7 @@ export async function createSubDocument(parentDocumentId: string, title: string)
   }
 
   if (!data) {
-    throw new Error("Creation du sous-document impossible.");
+    throw new Error("Création du sous-document impossible.");
   }
 
   revalidatePath("/managers");
