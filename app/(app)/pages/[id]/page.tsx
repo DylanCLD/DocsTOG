@@ -23,7 +23,7 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
   }
 
   const page = data as PageRecord;
-  const [allPagesResult, allDocumentsResult] = await Promise.all([
+  const [allPagesResult, allDocumentsResult, usersResult] = await Promise.all([
     supabase
       .from("pages")
       .select("*")
@@ -33,7 +33,8 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
       .from("documents")
       .select("id,parent_document_id,title,short_description,document_managers(name)")
       .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: true }),
+    supabase.from("users").select("id,email,full_name")
   ]);
   let pages = (allPagesResult.data ?? []) as PageRecord[];
   let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
@@ -54,6 +55,7 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
 
   const writer = canWrite(profile.role);
   const internalLinkTargets = buildInternalLinkTargets(pages, allDocuments);
+  const users = (usersResult.data ?? []) as Array<{ id: string; email: string; full_name: string | null }>;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
@@ -94,7 +96,7 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
           {canDelete(profile.role) && <DeleteButton action={deletePage.bind(null, page.id)} />}
         </div>
 
-      <PageEditorClient page={page} profile={profile} internalLinkTargets={internalLinkTargets} />
+      <PageEditorClient page={page} profile={profile} internalLinkTargets={internalLinkTargets} users={users} />
       </main>
     </div>
   );

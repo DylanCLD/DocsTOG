@@ -51,7 +51,7 @@ export function TableOfContents({ editor }: { editor: Editor | null }) {
   if (headings.length === 0) return null;
 
   return (
-    <nav className="sticky top-16 hidden xl:block">
+    <nav className="sticky top-16 hidden w-44 shrink-0 xl:block">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Sommaire</p>
       <ul className="space-y-1">
         {headings.map((heading, i) => (
@@ -59,11 +59,16 @@ export function TableOfContents({ editor }: { editor: Editor | null }) {
             <button
               type="button"
               className={`block w-full truncate text-left text-xs text-[var(--muted)] transition hover:text-[var(--text)] ${
-                heading.level === 1 ? "font-semibold" : heading.level === 2 ? "pl-3" : "pl-6"
+                heading.level === 1 ? "font-semibold" : heading.level === 2 ? "pl-3" : "pl-5"
               }`}
               onClick={() => {
-                const el = document.getElementById(heading.id);
-                el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                const headings = document.querySelectorAll(".prose-editor h1, .prose-editor h2, .prose-editor h3");
+                for (const el of headings) {
+                  if (el.textContent?.trim() === heading.text) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    break;
+                  }
+                }
               }}
             >
               {heading.text}

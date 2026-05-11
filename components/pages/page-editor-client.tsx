@@ -13,11 +13,13 @@ import type { InternalLinkTarget, PageRecord, Profile } from "@/types";
 export function PageEditorClient({
   page,
   profile,
-  internalLinkTargets
+  internalLinkTargets,
+  users = []
 }: {
   page: PageRecord;
   profile: Profile;
   internalLinkTargets: InternalLinkTarget[];
+  users?: Pick<Profile, "id" | "email" | "full_name">[];
 }) {
   const readOnly = profile.role === "reader";
 
@@ -52,6 +54,7 @@ export function PageEditorClient({
         readOnly={readOnly}
         internalLinkTargets={internalLinkTargets}
         currentTarget={{ type: "page", id: page.id }}
+        users={users}
         onSave={(content, options) => updatePageContent(page.id, content, options)}
         collaboration={{
           id: page.id,

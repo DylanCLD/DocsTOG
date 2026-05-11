@@ -39,7 +39,7 @@ export const SlashCommandsList = forwardRef<
   if (items.length === 0) return null;
 
   return (
-    <div className="min-w-[220px] rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 shadow-xl">
+    <div className="min-w-[220px] max-h-72 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 shadow-xl">
       {items.map((item, index) => (
         <button
           key={item.title}

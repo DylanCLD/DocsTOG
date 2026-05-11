@@ -55,7 +55,9 @@ import {
 import * as Y from "yjs";
 import { TableOfContents } from "@/components/editor/table-of-contents";
 import { SlashCommandsList, type SlashCommandsListRef } from "@/components/editor/slash-commands-list";
+import { MentionList, type MentionListRef } from "@/components/editor/mention-list";
 import { SlashCommands, SLASH_COMMANDS, type SlashCommand, type SlashMenuState } from "@/components/editor/slash-commands";
+import Mention from "@tiptap/extension-mention";
 import { SupabaseYjsProvider } from "@/components/editor/supabase-yjs-provider";
 import { createSubDocument } from "@/lib/actions/managers";
 import { createSubPage } from "@/lib/actions/pages";
@@ -116,7 +118,8 @@ export function RichEditor({
   collaboration,
   internalLinkTargets = [],
   currentTarget,
-  enableQuickCheckbox = false
+  enableQuickCheckbox = false,
+  users = []
 }: {
   value: unknown;
   onSave: (content: JSONContent, options?: ContentSaveOptions) => Promise<ContentSaveResult>;
@@ -124,6 +127,7 @@ export function RichEditor({
   internalLinkTargets?: InternalLinkTarget[];
   currentTarget?: CurrentInternalTarget;
   enableQuickCheckbox?: boolean;
+  users?: Pick<Profile, "id" | "email" | "full_name">[];
   collaboration?: {
     id: string;
     table: RealtimeTable;
@@ -267,6 +271,8 @@ export function RichEditor({
 
   const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
   const slashListRef = useRef<SlashCommandsListRef | null>(null);
+  const [mentionMenu, setMentionMenu] = useState<{ coords: { top: number; left: number }; query: string; from: number; to: number } | null>(null);
+  const mentionListRef = useRef<MentionListRef | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -362,6 +368,48 @@ export function RichEditor({
         onOpen: (state) => setSlashMenu(state),
         onUpdate: (state) => setSlashMenu(state),
         onClose: () => setSlashMenu(null)
+      }),
+      Mention.configure({
+        HTMLAttributes: { class: "mention" },
+        renderLabel: ({ node }) => `@${node.attrs.label ?? node.attrs.id}`,
+        suggestion: {
+          char: "@",
+          items: ({ query }: { query: string }) => {
+            const q = query.toLowerCase();
+            return users
+              .filter((u) => `${u.full_name ?? ""} ${u.email}`.toLowerCase().includes(q))
+              .slice(0, 8);
+          },
+          render: () => {
+            return {
+              onStart: (props: { clientRect?: (() => DOMRect | null) | null; query: string; range: { from: number; to: number } }) => {
+                const rect = props.clientRect?.();
+                if (!rect) return;
+                setMentionMenu({
+                  coords: { top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX },
+                  query: props.query,
+                  from: props.range.from,
+                  to: props.range.to
+                });
+              },
+              onUpdate: (props: { clientRect?: (() => DOMRect | null) | null; query: string; range: { from: number; to: number } }) => {
+                const rect = props.clientRect?.();
+                if (!rect) return;
+                setMentionMenu({
+                  coords: { top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX },
+                  query: props.query,
+                  from: props.range.from,
+                  to: props.range.to
+                });
+              },
+              onKeyDown: (props: { event: KeyboardEvent }) => {
+                if (props.event.key === "Escape") { setMentionMenu(null); return true; }
+                return mentionListRef.current?.onKeyDown(props.event) ?? false;
+              },
+              onExit: () => setMentionMenu(null)
+            };
+          }
+        }
       })
     ],
     onUpdate: ({ editor: currentEditor }) => {
@@ -936,6 +984,10 @@ export function RichEditor({
             const handled = slashListRef.current.onKeyDown(event.nativeEvent);
             if (handled) event.preventDefault();
           }
+          if (mentionMenu && mentionListRef.current) {
+            const handled = mentionListRef.current.onKeyDown(event.nativeEvent);
+            if (handled) event.preventDefault();
+          }
         }}
       />
 
@@ -981,6 +1033,29 @@ export function RichEditor({
       </div>
     </div>
     <TableOfContents editor={editor} />
+
+      {mentionMenu && typeof document !== "undefined" &&
+        createPortal(
+          <div style={{ position: "fixed", top: mentionMenu.coords.top, left: mentionMenu.coords.left, zIndex: 50 }}>
+            <MentionList
+              ref={mentionListRef}
+              items={users.filter((u) => {
+                const q = mentionMenu.query.toLowerCase();
+                return !q || `${u.full_name ?? ""} ${u.email}`.toLowerCase().includes(q);
+              }).slice(0, 8)}
+              command={(item) => {
+                if (!editor) return;
+                editor.chain().focus().insertContentAt(
+                  { from: mentionMenu.from, to: mentionMenu.to },
+                  [{ type: "mention", attrs: { id: item.id, label: item.full_name ?? item.email } }]
+                ).run();
+                setMentionMenu(null);
+              }}
+            />
+          </div>,
+          document.body
+        )
+      }
     </div>
   );
 }

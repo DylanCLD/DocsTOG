@@ -12,7 +12,7 @@ type ManagerWithCount = DocumentManager & {
 };
 
 export function ManagersListClient({ managers }: { managers: ManagerWithCount[] }) {
-  const [view, setView] = useState<"cards" | "list">("list");
+  const [view, setView] = useState<"cards" | "list">("cards");
 
   return (
     <div className="space-y-3">

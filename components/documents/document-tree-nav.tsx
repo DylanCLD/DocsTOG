@@ -143,7 +143,7 @@ export function DocumentTreeNav({
   }
 
   return (
-    <nav className={cn("space-y-1", compact ? "text-sm" : "rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2")}>
+    <nav className={cn(compact ? "space-y-1 text-sm" : "space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3")}>
       {roots.map((node) => (
         <DocumentTreeNode
           key={node.item.id}
@@ -291,7 +291,7 @@ function DocumentTreeNode({
           draggable={false}
           href={`/documents/${node.item.id}`}
           className={cn(
-            "min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 transition hover:bg-[var(--surface-elevated)]",
+            "min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-3 transition hover:bg-[var(--surface-elevated)]",
             isActive && "bg-[var(--surface-soft)] text-[var(--text)] ring-1 ring-[var(--accent)]",
             "text-sm"
           )}
@@ -319,7 +319,7 @@ function DocumentTreeNode({
       </div>
 
       {hasChildren && isOpen && (
-        <div className="ml-5 mt-1 space-y-1 border-l border-dashed border-[var(--border)] pl-3">
+        <div className="ml-5 mt-2 space-y-2 border-l border-dashed border-[var(--border)] pl-3">
           {node.children.map((child) => (
             <DocumentTreeNode
               key={child.item.id}

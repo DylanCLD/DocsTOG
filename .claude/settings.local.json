@@ -21,7 +21,9 @@
       "Bash(git log *)",
       "Bash(npx tsc *)",
       "Bash(npx next *)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm install *)",
+      "Bash(node -e \"const m = require\\('@tiptap/extension-mention'\\); console.log\\(Object.keys\\(m\\)\\);\")"
     ]
   }
 }
