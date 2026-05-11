@@ -302,13 +302,13 @@ function DocumentTreeNode({
             {node.item.is_favorite && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />}
             <span className="truncate font-medium">{node.item.title}</span>
             {!compact && (
-              <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                {node.item.status && <StatusBadge status={node.item.status} compact />}
-                {node.item.priority && <PriorityBadge priority={node.item.priority} compact />}
-                {node.item.users && <UserAvatar user={node.item.users} size="xs" />}
+              <span className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+                {node.item.status && <StatusBadge status={node.item.status} />}
+                {node.item.priority && <PriorityBadge priority={node.item.priority} />}
                 {node.item.document_tags && node.item.document_tags.length > 0 && (
                   <TagPills tags={node.item.document_tags} max={2} />
                 )}
+                {node.item.users && <UserAvatar user={node.item.users} size="xs" />}
               </span>
             )}
           </span>
