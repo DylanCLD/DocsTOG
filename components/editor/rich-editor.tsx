@@ -142,6 +142,7 @@ export function RichEditor({
   const [internalLinkError, setInternalLinkError] = useState<string | null>(null);
   const [creatingInternalLink, setCreatingInternalLink] = useState(false);
   const seededRef = useRef(false);
+  const imageOperationRef = useRef(false);
   const internalLinkSelectionRef = useRef<{ from: number; to: number; empty: boolean } | null>(null);
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const router = useRouter();
@@ -364,6 +365,7 @@ export function RichEditor({
     ],
     onUpdate: ({ editor: currentEditor }) => {
       if (collaborationState && !seededRef.current) return;
+      if (imageOperationRef.current) return;
       debouncedSave.run(currentEditor.getJSON());
     },
     editorProps: {
@@ -587,20 +589,28 @@ export function RichEditor({
       return;
     }
 
+    imageOperationRef.current = true;
     debouncedSave.cancel();
 
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      const content = editor.getJSON();
-      if (hasImageSrc(content, src)) {
-        await saveContent(content);
-        return;
+    try {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        const content = editor.getJSON();
+        if (hasImageSrc(content, src)) {
+          await saveContent(content);
+          debouncedSave.cancel();
+          return;
+        }
+
+        await waitForEditorTick();
       }
 
-      await waitForEditorTick();
+      setSaveStatus("image-unverified");
+      throw new Error("L'image n'a pas pu etre inseree dans l'editeur (timeout). Reessaie.");
+    } finally {
+      window.setTimeout(() => {
+        imageOperationRef.current = false;
+      }, 3000);
     }
-
-    setSaveStatus("image-unverified");
-    throw new Error("L'image n'a pas pu etre inseree dans l'editeur (timeout). Reessaie.");
   };
 
   const addImageUrl = async () => {
