@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Node, type JSONContent } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -52,6 +53,9 @@ import {
   YoutubeIcon
 } from "lucide-react";
 import * as Y from "yjs";
+import { TableOfContents } from "@/components/editor/table-of-contents";
+import { SlashCommandsList, type SlashCommandsListRef } from "@/components/editor/slash-commands-list";
+import { SlashCommands, SLASH_COMMANDS, type SlashCommand, type SlashMenuState } from "@/components/editor/slash-commands";
 import { SupabaseYjsProvider } from "@/components/editor/supabase-yjs-provider";
 import { createSubDocument } from "@/lib/actions/managers";
 import { createSubPage } from "@/lib/actions/pages";
@@ -261,6 +265,9 @@ export function RichEditor({
 
   const debouncedSave = useDebouncedCallback(saveContent, collaborationState ? 650 : 1200);
 
+  const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
+  const slashListRef = useRef<SlashCommandsListRef | null>(null);
+
   const editor = useEditor({
     immediatelyRender: false,
     editable: !readOnly,
@@ -350,6 +357,11 @@ export function RichEditor({
           element.textContent = "::";
           return element;
         }
+      }),
+      SlashCommands.configure({
+        onOpen: (state) => setSlashMenu(state),
+        onUpdate: (state) => setSlashMenu(state),
+        onClose: () => setSlashMenu(null)
       })
     ],
     onUpdate: ({ editor: currentEditor }) => {
@@ -674,7 +686,8 @@ export function RichEditor({
   const childLabel = currentTarget?.type === "document" ? "sous-document" : "sous-page";
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <div className="flex gap-6 items-start">
+    <div className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
       {collaborationState && (
         <div className="flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2 text-[var(--muted)]">
@@ -915,7 +928,44 @@ export function RichEditor({
         </div>
       )}
 
-      <EditorContent editor={editor} className="prose-editor" />
+      <EditorContent
+        editor={editor}
+        className="prose-editor"
+        onKeyDown={(event) => {
+          if (slashMenu && slashListRef.current) {
+            const handled = slashListRef.current.onKeyDown(event.nativeEvent);
+            if (handled) event.preventDefault();
+          }
+        }}
+      />
+
+      {slashMenu?.coords && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: slashMenu.coords.top + 4,
+              left: slashMenu.coords.left,
+              zIndex: 50
+            }}
+          >
+            <SlashCommandsList
+              ref={slashListRef}
+              items={SLASH_COMMANDS.filter((cmd) => {
+                const q = slashMenu.query.toLowerCase();
+                return !q || cmd.title.toLowerCase().includes(q) || cmd.description.toLowerCase().includes(q);
+              })}
+              command={(item: SlashCommand) => {
+                if (!editor) return;
+                editor.chain().focus().deleteRange({ from: slashMenu.from, to: slashMenu.from + 1 + slashMenu.query.length }).run();
+                item.command(editor);
+                setSlashMenu(null);
+              }}
+            />
+          </div>,
+          document.body
+        )
+      }
 
       <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--muted)]">
         <span>Glisse les poignees a gauche des blocs pour reorganiser le contenu.</span>
@@ -929,6 +979,8 @@ export function RichEditor({
           {saveStatus === "idle" && "Pret"}
         </span>
       </div>
+    </div>
+    <TableOfContents editor={editor} />
     </div>
   );
 }
