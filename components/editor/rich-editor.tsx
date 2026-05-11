@@ -106,7 +106,7 @@ function userName(profile: Pick<Profile, "email" | "full_name">) {
 }
 
 function waitForEditorTick() {
-  return new Promise((resolve) => window.setTimeout(resolve, 25));
+  return new Promise((resolve) => window.setTimeout(resolve, 50));
 }
 
 export function RichEditor({
@@ -206,10 +206,6 @@ export function RichEditor({
     },
     [collaborationState]
   );
-
-  useEffect(() => {
-    seededRef.current = false;
-  }, [collaborationState]);
 
   useEffect(() => {
     if (!collaborationState) {
@@ -367,6 +363,7 @@ export function RichEditor({
       })
     ],
     onUpdate: ({ editor: currentEditor }) => {
+      if (collaborationState && !seededRef.current) return;
       debouncedSave.run(currentEditor.getJSON());
     },
     editorProps: {
@@ -426,16 +423,36 @@ export function RichEditor({
   });
 
   useEffect(() => {
-    if (!editor || !collaborationState || seededRef.current) {
+    if (!editor || !collaborationState) {
       return;
     }
 
-    seededRef.current = true;
-    window.setTimeout(() => {
-      if (editor.isEmpty) {
+    seededRef.current = false;
+
+    const trySeed = () => {
+      if (seededRef.current || !editor || editor.isDestroyed) return;
+      const doc = editor.state.doc;
+      const isEffectivelyEmpty =
+        doc.childCount === 0 ||
+        (doc.childCount === 1 &&
+          doc.firstChild?.type.name === "paragraph" &&
+          doc.firstChild.content.size === 0);
+
+      if (isEffectivelyEmpty) {
         editor.commands.setContent(initialContent, { emitUpdate: false });
       }
-    }, 350);
+      seededRef.current = true;
+    };
+
+    const t1 = window.setTimeout(trySeed, 100);
+    const t2 = window.setTimeout(trySeed, 600);
+    const t3 = window.setTimeout(trySeed, 1500);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
   }, [collaborationState, editor, initialContent]);
 
   const addLink = () => {
@@ -572,7 +589,7 @@ export function RichEditor({
 
     debouncedSave.cancel();
 
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
       const content = editor.getJSON();
       if (hasImageSrc(content, src)) {
         const result = await saveContent(content, { verifyImageSrc: src });
@@ -581,7 +598,8 @@ export function RichEditor({
             uploadedUrl: src,
             jsonContainsImage: true,
             serverVerifiedImage: result?.verifiedImageSrc ?? false,
-            savedImageCount: result?.imageSrcs.length ?? 0
+            savedImageCount: result?.imageSrcs.length ?? 0,
+            attempts: attempt + 1
           });
         }
         return;
@@ -590,16 +608,8 @@ export function RichEditor({
       await waitForEditorTick();
     }
 
-    const content = editor.getJSON();
-    const result = await saveContent(content, { verifyImageSrc: src });
-    if (process.env.NODE_ENV === "development") {
-      console.info("[editor-image]", {
-        uploadedUrl: src,
-        jsonContainsImage: hasImageSrc(content, src),
-        serverVerifiedImage: result?.verifiedImageSrc ?? false,
-        savedImageCount: result?.imageSrcs.length ?? 0
-      });
-    }
+    setSaveStatus("image-unverified");
+    throw new Error("L'image n'a pas pu etre inseree dans l'editeur (timeout). Reessaie.");
   };
 
   const addImageUrl = async () => {
@@ -673,6 +683,8 @@ export function RichEditor({
     } catch (error) {
       console.error("[editor-image] Upload/save failed", error);
       setSaveStatus("error");
+      const message = error instanceof Error ? error.message : "L'image n'a pas pu etre enregistree.";
+      window.alert(`${message}\n\nL'image n'a PAS ete sauvegardee. Aucun contenu existant n'a ete efface.`);
     } finally {
       setUploading(false);
     }
