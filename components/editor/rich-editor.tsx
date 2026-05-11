@@ -646,7 +646,7 @@ export function RichEditor({
         if (hasImageSrc(content, src)) {
           console.log("[editor-image] saving with image, attempt", attempt, "content size", JSON.stringify(content).length);
           console.log("[editor-image] first 1000 chars of content being saved:", JSON.stringify(content).substring(0, 1000));
-          await saveContent(content, { verifyImageSrc: src });
+          await saveContent(content);
           debouncedSave.cancel();
           console.log("[editor-image] save succeeded for src:", src);
           return;

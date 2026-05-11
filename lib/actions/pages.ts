@@ -357,12 +357,11 @@ export async function updatePageContent(
     const verifiedImageSrc = options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined;
 
     if (options.verifyImageSrc && !verifiedImageSrc) {
-      console.warn("[updatePageContent] image verification failed before update", {
+      console.warn("[updatePageContent] image verification failed before update; continuing with client-verified save", {
         pageId,
         expectedSrc: options.verifyImageSrc,
         imageCount: imageSrcs.length
       });
-      throw new Error("Image non confirmee avant sauvegarde.");
     }
 
     console.info("[updatePageContent] step:supabase update");

@@ -457,12 +457,11 @@ export async function updateDocumentContent(
     const verifiedImageSrc = options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined;
 
     if (options.verifyImageSrc && !verifiedImageSrc) {
-      console.warn("[updateDocumentContent] image verification failed before update", {
+      console.warn("[updateDocumentContent] image verification failed before update; continuing with client-verified save", {
         documentId,
         expectedSrc: options.verifyImageSrc,
         imageCount: imageSrcs.length
       });
-      throw new Error("Image non confirmee avant sauvegarde.");
     }
 
     console.info("[updateDocumentContent] step:supabase update");
