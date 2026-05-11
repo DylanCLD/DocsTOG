@@ -141,7 +141,7 @@ export function RichEditor({
   users = []
 }: {
   value: unknown;
-  onSave: (content: JSONContent, options?: ContentSaveOptions) => Promise<ContentSaveResult>;
+  onSave: (content: string, options?: ContentSaveOptions) => Promise<ContentSaveResult>;
   readOnly?: boolean;
   internalLinkTargets?: InternalLinkTarget[];
   currentTarget?: CurrentInternalTarget;
@@ -256,7 +256,8 @@ export function RichEditor({
       let verificationFailed = false;
 
       const runSave = async () => {
-        const result = await onSave(content, options);
+        const serializedContent = JSON.stringify(content);
+        const result = await onSave(serializedContent, options);
 
         if (options.verifyImageSrc && !result.verifiedImageSrc) {
           verificationFailed = true;

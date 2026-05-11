@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
 import { syncTagsForTarget } from "@/lib/actions/tags";
-import { extractImageSrcs, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
+import { extractImageSrcs, parseEditorContentPayload, type ContentSaveOptions, type ContentSaveResult } from "@/lib/editor-content";
 import { createClient } from "@/lib/supabase/server";
 import { emptyDoc } from "@/lib/utils";
 import { documentSchema, formString, managerSchema, nullableString } from "@/lib/validation";
@@ -448,11 +448,13 @@ export async function updateDocumentContent(
     const supabase = await createClient();
     console.info("[updateDocumentContent] step:createClient OK");
 
+    const parsedContent = parseEditorContentPayload(content);
+
     console.info("[updateDocumentContent] step:extractImageSrcs", {
-      contentType: typeof content,
-      contentKeys: content && typeof content === "object" ? Object.keys(content as object).length : 0
+      contentType: typeof parsedContent,
+      contentKeys: parsedContent && typeof parsedContent === "object" ? Object.keys(parsedContent as object).length : 0
     });
-    const imageSrcs = extractImageSrcs(content);
+    const imageSrcs = extractImageSrcs(parsedContent);
     console.info("[updateDocumentContent] step:extractImageSrcs OK", { count: imageSrcs.length });
     const verifiedImageSrc = options.verifyImageSrc ? imageSrcs.includes(options.verifyImageSrc) : undefined;
 
@@ -468,7 +470,7 @@ export async function updateDocumentContent(
     const { data, error } = await supabase
       .from("documents")
       .update({
-        content,
+        content: parsedContent,
         updated_by: profile.id
       })
       .eq("id", documentId)

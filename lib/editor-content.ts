@@ -17,6 +17,18 @@ export function editorRoom(table: EditorTargetTable, id: string) {
   return `editor-yjs:${table}:${id}`;
 }
 
+export function parseEditorContentPayload(content: unknown): unknown {
+  if (typeof content !== "string") {
+    return content;
+  }
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    throw new Error("Contenu editeur invalide.");
+  }
+}
+
 export function extractImageSrcs(content: unknown): string[] {
   const srcs = new Set<string>();
   const seen = new WeakSet<object>();
