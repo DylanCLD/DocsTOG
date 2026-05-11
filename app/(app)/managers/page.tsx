@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { FileText, FolderKanban, Plus } from "lucide-react";
+import { ChevronRight, FileText, FolderKanban, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ManagersListClient } from "@/components/managers/managers-list-client";
 import { createManager } from "@/lib/actions/managers";
 import { canWrite, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -57,32 +58,7 @@ export default async function ManagersPage() {
       {managers.length === 0 ? (
         <EmptyState icon={FolderKanban} title="Aucun gestionnaire" description="La migration fournit un seed de base; tu peux aussi creer tes propres gestionnaires ici." />
       ) : (
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {managers.map((manager) => {
-            const documentCount = manager.documents?.[0]?.count ?? 0;
-
-            return (
-              <Link key={manager.id} href={`/managers/${manager.id}`}>
-                <Card className="flex h-full flex-col justify-between p-4 transition hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{manager.icon}</span>
-                    <div className="min-w-0">
-                      <h2 className="truncate font-semibold">{manager.name}</h2>
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--muted)]">
-                        {manager.description ?? "Gestionnaire de documents projet."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 inline-flex w-fit items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
-                    <FileText className="h-3.5 w-3.5 text-[var(--accent)]" />
-                    {documentCount} document{documentCount > 1 ? "s" : ""}
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
-        </section>
+        <ManagersListClient managers={managers} />
       )}
     </div>
   );

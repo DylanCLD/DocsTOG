@@ -90,6 +90,27 @@ textarea {
   color: var(--text);
 }
 
+.tiptap-drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-size: 0.7rem;
+  letter-spacing: -0.15em;
+  user-select: none;
+  padding: 0 2px;
+}
+
+.prose-editor:hover .tiptap-drag-handle,
+.tiptap-drag-handle:hover {
+  opacity: 1;
+}
+
+.tiptap-drag-handle:active {
+  cursor: grabbing;
+  opacity: 1;
+}
+
 .prose-editor .ProseMirror {
   min-height: 420px;
   outline: none;

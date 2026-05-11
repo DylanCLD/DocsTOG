@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, CornerDownRight, FileText, GripVertical } from "lucide-react";
+import { PriorityBadge, StatusBadge, TagPills, UserAvatar } from "@/components/documents/document-badges";
 import { buildHierarchy, collectAncestorIds, type HierarchyNode } from "@/lib/hierarchy";
 import { cn } from "@/lib/utils";
-import type { DocumentRecord } from "@/types";
+import type { DocumentPriority, DocumentRecord, DocumentStatus, Profile, Tag } from "@/types";
 
 type DocumentReorderAction = (managerId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
 type DocumentMoveAction = (managerId: string, documentId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
@@ -15,6 +16,10 @@ type DropMode = "before" | "inside" | "after";
 type OrderOverrides = Record<string, string[]>;
 export type DocumentTreeRecord = Pick<DocumentRecord, "id" | "manager_id" | "parent_document_id" | "title" | "short_description" | "created_at"> & {
   sort_order?: number | null;
+  status?: DocumentStatus;
+  priority?: DocumentPriority;
+  users?: Pick<Profile, "id" | "email" | "full_name" | "avatar_url"> | null;
+  document_tags?: Array<{ tags: Tag | null }>;
 };
 
 export function DocumentTreeNav({
@@ -288,16 +293,26 @@ function DocumentTreeNode({
           className={cn(
             "min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 transition hover:bg-[var(--surface-elevated)]",
             isActive && "bg-[var(--surface-soft)] text-[var(--text)] ring-1 ring-[var(--accent)]",
-            compact ? "text-sm" : "text-sm"
+            "text-sm"
           )}
         >
           <span className="flex min-w-0 items-center gap-2">
             <FileText className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
             <span className="truncate font-medium">{node.item.title}</span>
+            {!compact && (
+              <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                {node.item.status && <StatusBadge status={node.item.status} compact />}
+                {node.item.priority && <PriorityBadge priority={node.item.priority} compact />}
+                {node.item.users && <UserAvatar user={node.item.users} size="xs" />}
+                {node.item.document_tags && node.item.document_tags.length > 0 && (
+                  <TagPills tags={node.item.document_tags} max={2} />
+                )}
+              </span>
+            )}
           </span>
-          {!compact && (
+          {!compact && node.item.short_description && (
             <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
-              {node.item.short_description ?? "Sans description"}
+              {node.item.short_description}
             </span>
           )}
         </Link>

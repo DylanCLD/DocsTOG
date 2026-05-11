@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\dylan\\\\Documents\\\\Code\\\\DocsTOG\" -Recurse -Force)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-List FullName)",
+      "Bash(xargs grep *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node -e \"const m = require\\('./node_modules/y-protocols/package.json'\\); console.log\\('type:', m.type, 'main:', m.main, 'exports:', JSON.stringify\\(m.exports, null, 2\\)\\)\")",
+      "Bash(node -e \"const m = require\\('./node_modules/yjs/package.json'\\); console.log\\('type:', m.type, 'main:', m.main, 'module:', m.module\\)\")",
+      "Bash(node -e \"const m = require\\('./node_modules/lib0/package.json'\\); console.log\\('type:', m.type, 'main:', m.main\\)\")",
+      "Bash(npm run *)",
+      "Bash(node -e \"const m = require\\('./node_modules/@tiptap/extension-collaboration/package.json'\\); console.log\\('type:', m.type, 'main:', m.main, 'module:', m.module\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(npx vercel *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\dylan\\\\Documents\\\\Code\\\\DocsTOG\" -Recurse -Depth 2)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(git log *)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "WebSearch"
+    ]
+  }
+}
