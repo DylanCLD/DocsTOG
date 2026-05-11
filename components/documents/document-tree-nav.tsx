@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, CornerDownRight, FileText, GripVertical, Star } from "lucide-react";
+import { ChevronRight, CornerDownRight, FileText, GripVertical, Search, Star } from "lucide-react";
 import { PriorityBadge, StatusBadge, TagPills, UserAvatar } from "@/components/documents/document-badges";
 import { buildHierarchy, collectAncestorIds, type HierarchyNode } from "@/lib/hierarchy";
 import { cn } from "@/lib/utils";
@@ -45,12 +45,15 @@ export function DocumentTreeNav({
   const router = useRouter();
   const [orderOverrides, setOrderOverrides] = useState<OrderOverrides>({});
   const [dragState, setDragState] = useState<DragState>(null);
+  const [query, setQuery] = useState("");
   const localDocuments = useMemo(() => applyOrderOverrides(sortDocuments(documents), orderOverrides), [documents, orderOverrides]);
-  const roots = useMemo(() => buildHierarchy(localDocuments, (document) => document.parent_document_id), [localDocuments]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleDocuments = useMemo(() => filterDocuments(localDocuments, normalizedQuery), [localDocuments, normalizedQuery]);
+  const roots = useMemo(() => buildHierarchy(visibleDocuments, (document) => document.parent_document_id), [visibleDocuments]);
   const rootIds = useMemo(() => roots.map((root) => root.item.id), [roots]);
   const initialOpenIds = useMemo(() => {
-    if (defaultOpenAll) {
-      const parentIds = new Set(localDocuments.map((document) => document.parent_document_id).filter(Boolean) as string[]);
+    if (defaultOpenAll || normalizedQuery) {
+      const parentIds = new Set(visibleDocuments.map((document) => document.parent_document_id).filter(Boolean) as string[]);
       return parentIds;
     }
 
@@ -58,13 +61,13 @@ export function DocumentTreeNav({
       return new Set<string>();
     }
 
-    const ids = collectAncestorIds(localDocuments, activeDocumentId, (document) => document.parent_document_id);
-    if (localDocuments.some((document) => document.parent_document_id === activeDocumentId)) {
+    const ids = collectAncestorIds(visibleDocuments, activeDocumentId, (document) => document.parent_document_id);
+    if (visibleDocuments.some((document) => document.parent_document_id === activeDocumentId)) {
       ids.add(activeDocumentId);
     }
 
     return ids;
-  }, [activeDocumentId, defaultOpenAll, localDocuments]);
+  }, [activeDocumentId, defaultOpenAll, normalizedQuery, visibleDocuments]);
   const [openIds, setOpenIds] = useState(initialOpenIds);
   const effectiveOpenIds = useMemo(() => new Set([...openIds, ...initialOpenIds]), [initialOpenIds, openIds]);
 
@@ -145,7 +148,20 @@ export function DocumentTreeNav({
 
   return (
     <nav className={cn(compact ? "space-y-1 text-sm" : "space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3")}>
-      {roots.map((node) => (
+      {documents.length > 6 && (
+        <div className="relative mb-2">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filtrer..."
+            className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-8 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+          />
+        </div>
+      )}
+      {roots.length === 0 ? (
+        <p className="rounded-md border border-[var(--border)] px-3 py-5 text-center text-sm text-[var(--muted)]">Aucun document trouve.</p>
+      ) : roots.map((node) => (
         <DocumentTreeNode
           key={node.item.id}
           node={node}
@@ -376,6 +392,31 @@ function parentKey(parentId: string | null) {
 
 function containsNode(node: HierarchyNode<DocumentTreeRecord>, id: string): boolean {
   return node.children.some((child) => child.item.id === id || containsNode(child, id));
+}
+
+function filterDocuments(documents: DocumentTreeRecord[], query: string) {
+  if (!query) {
+    return documents;
+  }
+
+  const byId = new Map(documents.map((document) => [document.id, document]));
+  const keepIds = new Set<string>();
+
+  documents.forEach((document) => {
+    const tags = document.document_tags?.map((entry) => entry.tags?.name).filter(Boolean).join(" ") ?? "";
+    const haystack = `${document.title} ${document.short_description ?? ""} ${document.status ?? ""} ${document.priority ?? ""} ${tags}`.toLowerCase();
+    if (!haystack.includes(query)) {
+      return;
+    }
+
+    let current: DocumentTreeRecord | undefined = document;
+    while (current) {
+      keepIds.add(current.id);
+      current = current.parent_document_id ? byId.get(current.parent_document_id) : undefined;
+    }
+  });
+
+  return documents.filter((document) => keepIds.has(document.id));
 }
 
 function sortDocuments(documents: DocumentTreeRecord[]) {

@@ -1,6 +1,4 @@
-import Link from "next/link";
-import { ChevronRight, FileText, FolderKanban, Plus } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { FolderKanban, Plus } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconPickerField } from "@/components/ui/icon-picker-field";
 import { Input, Label, Textarea } from "@/components/ui/input";

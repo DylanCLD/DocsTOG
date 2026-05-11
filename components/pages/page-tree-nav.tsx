@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, CornerDownRight, GripVertical } from "lucide-react";
+import { ChevronRight, CornerDownRight, GripVertical, Search } from "lucide-react";
 import { buildHierarchy, collectAncestorIds, type HierarchyNode } from "@/lib/hierarchy";
 import { cn } from "@/lib/utils";
 import type { PageRecord } from "@/types";
@@ -34,11 +34,14 @@ export function PageTreeNav({
   const router = useRouter();
   const [orderOverrides, setOrderOverrides] = useState<OrderOverrides>({});
   const [dragState, setDragState] = useState<DragState>(null);
+  const [query, setQuery] = useState("");
   const localPages = useMemo(() => applyOrderOverrides(sortPages(pages), orderOverrides), [orderOverrides, pages]);
-  const roots = useMemo(() => buildHierarchy(localPages, (page) => page.parent_page_id), [localPages]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visiblePages = useMemo(() => filterPages(localPages, normalizedQuery), [localPages, normalizedQuery]);
+  const roots = useMemo(() => buildHierarchy(visiblePages, (page) => page.parent_page_id), [visiblePages]);
   const initialOpenIds = useMemo(() => {
-    if (defaultOpenAll) {
-      const parentIds = new Set(localPages.map((page) => page.parent_page_id).filter(Boolean) as string[]);
+    if (defaultOpenAll || normalizedQuery) {
+      const parentIds = new Set(visiblePages.map((page) => page.parent_page_id).filter(Boolean) as string[]);
       return parentIds;
     }
 
@@ -46,13 +49,13 @@ export function PageTreeNav({
       return new Set<string>();
     }
 
-    const ids = collectAncestorIds(localPages, activePageId, (page) => page.parent_page_id);
-    if (localPages.some((page) => page.parent_page_id === activePageId)) {
+    const ids = collectAncestorIds(visiblePages, activePageId, (page) => page.parent_page_id);
+    if (visiblePages.some((page) => page.parent_page_id === activePageId)) {
       ids.add(activePageId);
     }
 
     return ids;
-  }, [activePageId, defaultOpenAll, localPages]);
+  }, [activePageId, defaultOpenAll, normalizedQuery, visiblePages]);
   const [openIds, setOpenIds] = useState(initialOpenIds);
   const effectiveOpenIds = useMemo(() => new Set([...openIds, ...initialOpenIds]), [initialOpenIds, openIds]);
 
@@ -113,7 +116,20 @@ export function PageTreeNav({
 
   return (
     <nav className={cn("space-y-1", compact ? "text-sm" : "rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2")}>
-      {roots.map((node) => (
+      {pages.length > 6 && (
+        <div className="relative mb-2">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filtrer..."
+            className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-8 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+          />
+        </div>
+      )}
+      {roots.length === 0 ? (
+        <p className="rounded-md border border-[var(--border)] px-3 py-5 text-center text-sm text-[var(--muted)]">Aucune page trouvee.</p>
+      ) : roots.map((node) => (
         <PageTreeNode
           key={node.item.id}
           node={node}
@@ -308,6 +324,30 @@ function parentKey(parentId: string | null) {
 
 function containsNode(node: HierarchyNode<PageRecord>, id: string): boolean {
   return node.children.some((child) => child.item.id === id || containsNode(child, id));
+}
+
+function filterPages(pages: PageRecord[], query: string) {
+  if (!query) {
+    return pages;
+  }
+
+  const byId = new Map(pages.map((page) => [page.id, page]));
+  const keepIds = new Set<string>();
+
+  pages.forEach((page) => {
+    const haystack = `${page.title} ${page.category}`.toLowerCase();
+    if (!haystack.includes(query)) {
+      return;
+    }
+
+    let current: PageRecord | undefined = page;
+    while (current) {
+      keepIds.add(current.id);
+      current = current.parent_page_id ? byId.get(current.parent_page_id) : undefined;
+    }
+  });
+
+  return pages.filter((page) => keepIds.has(page.id));
 }
 
 function sortPages(pages: PageRecord[]) {

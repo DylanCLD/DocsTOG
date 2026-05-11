@@ -31,6 +31,8 @@ import {
   CheckSquare,
   Code,
   Columns3,
+  Copy,
+  ExternalLink,
   FileSymlink,
   Heading1,
   Heading2,
@@ -47,6 +49,7 @@ import {
   Redo2,
   Search,
   TableIcon,
+  Trash2,
   UnderlineIcon,
   Undo2,
   X,
@@ -76,6 +79,7 @@ type RealtimeTable = "pages" | "documents";
 type CurrentInternalTarget = { type: "page" | "document"; id: string };
 type InternalLinkTab = InternalLinkTarget["type"];
 type InternalLinkPickerMode = "all" | "pages";
+type EditorToast = { id: number; message: string; tone: "success" | "error" | "info" };
 
 const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
@@ -165,6 +169,14 @@ function imageFileFromDataUrl(src: string) {
   return new File([bytes], `pasted-image-${Date.now()}.${imageExtensionFromMime(mime)}`, { type: mime });
 }
 
+function formatSavedAt(date: Date | null) {
+  if (!date) {
+    return "Pret";
+  }
+
+  return `Sauvegarde ${date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 function hasAllImageSrcs(content: unknown, srcs: string[]) {
   if (srcs.length === 0) {
     return true;
@@ -209,6 +221,8 @@ export function RichEditor({
 }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [uploading, setUploading] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [toasts, setToasts] = useState<EditorToast[]>([]);
   const [activeUsersVersion, setActiveUsersVersion] = useState(0);
   const [internalLinkOpen, setInternalLinkOpen] = useState(false);
   const [internalLinkQuery, setInternalLinkQuery] = useState("");
@@ -224,6 +238,15 @@ export function RichEditor({
   const router = useRouter();
   const collaborationId = collaboration?.id;
   const collaborationTable = collaboration?.table;
+  void users;
+
+  const notify = useCallback((message: string, tone: EditorToast["tone"] = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((current) => [...current.slice(-2), { id, message, tone }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 3600);
+  }, []);
 
   const initialContent = useMemo(() => {
     if (value && typeof value === "object") {
@@ -319,6 +342,8 @@ export function RichEditor({
           throw new Error("Image non confirmee apres sauvegarde.");
         }
 
+        const savedAt = new Date();
+        setLastSavedAt(savedAt);
         setSaveStatus(verifyingImage ? "image-saved" : "saved");
         return result;
       };
@@ -451,10 +476,12 @@ export function RichEditor({
       const missingProtectedImageSrcs = Array.from(protectedImageSrcsRef.current.keys()).filter((src) => !hasImageSrc(content, src));
 
       if (missingProtectedImageSrcs.length > 0) {
-        console.warn("[editor-image] skipped autosave that would drop recently saved image srcs", {
-          missingProtectedImageSrcs,
-          currentImageSrcs: extractImageSrcs(content)
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[editor-image] skipped autosave that would drop recently saved image srcs", {
+            missingProtectedImageSrcs,
+            currentImageSrcs: extractImageSrcs(content)
+          });
+        }
         return;
       }
 
@@ -495,6 +522,27 @@ export function RichEditor({
         }
 
         const imageSrc = getPastedImageSrc(event.clipboardData);
+        if (!imageSrc) {
+          return false;
+        }
+
+        event.preventDefault();
+        void pasteImageSrc(imageSrc);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        if (!editor || readOnly) {
+          return false;
+        }
+
+        const imageFile = getPastedImageFile(event.dataTransfer);
+        if (imageFile) {
+          event.preventDefault();
+          void uploadImage(imageFile);
+          return true;
+        }
+
+        const imageSrc = getPastedImageSrc(event.dataTransfer);
         if (!imageSrc) {
           return false;
         }
@@ -714,7 +762,7 @@ export function RichEditor({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Creation impossible.";
       setInternalLinkError(message);
-      window.alert(message);
+      notify(message, "error");
     } finally {
       setCreatingInternalLink(false);
     }
@@ -754,6 +802,7 @@ export function RichEditor({
             savedImageCount: result?.imageSrcs.length ?? 0,
             serverSawImage: result?.imageSrcs.includes(src) ?? false
           });
+          notify("Image sauvegardee", "success");
           return;
         }
 
@@ -763,6 +812,7 @@ export function RichEditor({
       console.warn("[editor-image] timeout — getJSON never contained src:", src);
       console.warn("[editor-image] final getJSON:", JSON.stringify(editor.getJSON()).substring(0, 1000));
       setSaveStatus("image-unverified");
+      notify("Image non confirmee dans l'editeur", "error");
       throw new Error("L'image n'a pas pu etre inseree dans l'editeur (timeout). Reessaie.");
     } finally {
       window.setTimeout(() => {
@@ -775,8 +825,13 @@ export function RichEditor({
     const url = window.prompt("URL de l'image", "https://");
     if (url?.trim()) {
       const src = url.trim();
-      editor?.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
-      await persistImageContent(src);
+      try {
+        editor?.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
+        await persistImageContent(src);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "L'image n'a pas pu etre sauvegardee.";
+        notify(message, "error");
+      }
     }
   };
 
@@ -791,8 +846,13 @@ export function RichEditor({
       return;
     }
 
-    editor.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
-    await persistImageContent(src);
+    try {
+      editor.chain().focus().insertContent({ type: "image", attrs: { src } }).run();
+      await persistImageContent(src);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "L'image collee n'a pas pu etre sauvegardee.";
+      notify(message, "error");
+    }
   };
 
   const addYoutube = () => {
@@ -837,6 +897,7 @@ export function RichEditor({
 
     setUploading(true);
     setSaveStatus("image-saving");
+    notify("Image en cours d'envoi...", "info");
 
     try {
       const supabase = createClient();
@@ -859,7 +920,7 @@ export function RichEditor({
       console.error("[editor-image] Upload/save failed", error);
       setSaveStatus("error");
       const message = error instanceof Error ? error.message : "L'image n'a pas pu etre enregistree.";
-      window.alert(`${message}\n\nL'image n'a PAS ete sauvegardee. Aucun contenu existant n'a ete efface.`);
+      notify(`${message} Aucun contenu existant n'a ete efface.`, "error");
     } finally {
       setUploading(false);
     }
@@ -871,8 +932,57 @@ export function RichEditor({
 
   const toolbarDisabled = readOnly;
   const activeLinkHref = editor.getAttributes("link").href as string | undefined;
+  const activeImageSrc = editor.getAttributes("image").src as string | undefined;
   const isInternalLinkActive = Boolean(activeLinkHref?.startsWith("/pages/") || activeLinkHref?.startsWith("/documents/"));
   const childLabel = currentTarget?.type === "document" ? "sous-document" : "sous-page";
+  const statusText =
+    saveStatus === "saving"
+      ? "Sauvegarde..."
+      : saveStatus === "saved"
+        ? formatSavedAt(lastSavedAt)
+        : saveStatus === "image-saving"
+          ? "Image en cours d'envoi..."
+          : saveStatus === "image-saved"
+            ? formatSavedAt(lastSavedAt)
+            : saveStatus === "image-unverified"
+              ? "Image non confirmee"
+              : saveStatus === "error"
+                ? "Erreur de sauvegarde"
+                : formatSavedAt(lastSavedAt);
+
+  const copyActiveImageUrl = async () => {
+    if (!activeImageSrc) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(activeImageSrc);
+      notify("URL de l'image copiee", "success");
+    } catch {
+      notify("Copie impossible depuis ce navigateur", "error");
+    }
+  };
+
+  const openActiveImage = () => {
+    if (activeImageSrc) {
+      window.open(activeImageSrc, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const deleteActiveImage = async () => {
+    if (!editor) {
+      return;
+    }
+
+    try {
+      editor.chain().focus().deleteSelection().run();
+      await saveContent(editor.getJSON());
+      notify("Image supprimee", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Suppression impossible.";
+      notify(message, "error");
+    }
+  };
 
   return (
     <div className="flex gap-6 items-start">
@@ -998,6 +1108,25 @@ export function RichEditor({
           <Redo2 className="h-4 w-4" />
         </ToolbarButton>
       </div>
+
+      {!readOnly && (
+        <BubbleMenu
+          editor={editor}
+          updateDelay={80}
+          shouldShow={({ editor: menuEditor }) => menuEditor.isActive("image")}
+          className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-2xl shadow-black/35"
+        >
+          <IconMenuButton label="Copier l'URL" onClick={() => void copyActiveImageUrl()}>
+            <Copy className="h-4 w-4" />
+          </IconMenuButton>
+          <IconMenuButton label="Ouvrir" onClick={openActiveImage}>
+            <ExternalLink className="h-4 w-4" />
+          </IconMenuButton>
+          <IconMenuButton label="Supprimer" tone="danger" onClick={() => void deleteActiveImage()}>
+            <Trash2 className="h-4 w-4" />
+          </IconMenuButton>
+        </BubbleMenu>
+      )}
 
       {!readOnly && currentTarget && (
         <BubbleMenu
@@ -1158,18 +1287,31 @@ export function RichEditor({
 
       <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--muted)]">
         <span>Glisse les poignees a gauche des blocs pour reorganiser le contenu.</span>
-        <span>
-          {saveStatus === "saving" && "Sauvegarde..."}
-          {saveStatus === "saved" && "Sauvegarde auto OK"}
-          {saveStatus === "image-saving" && "Sauvegarde image..."}
-          {saveStatus === "image-saved" && "Image sauvegardee"}
-          {saveStatus === "image-unverified" && "Erreur: image non confirmee"}
-          {saveStatus === "error" && "Erreur de sauvegarde"}
-          {saveStatus === "idle" && "Pret"}
+        <span className={cn(saveStatus === "error" && "text-red-300", saveStatus === "image-saving" && "text-[var(--accent)]")}>
+          {statusText}
         </span>
       </div>
     </div>
     <TableOfContents editor={editor} />
+    {toasts.length > 0 &&
+      createPortal(
+        <div className="fixed bottom-4 right-4 z-[70] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-sm shadow-2xl shadow-black/25",
+                toast.tone === "success" && "border-emerald-400/35 bg-emerald-500/15 text-emerald-100",
+                toast.tone === "error" && "border-red-400/35 bg-red-500/15 text-red-100",
+                toast.tone === "info" && "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]"
+              )}
+            >
+              {toast.message}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -1195,6 +1337,34 @@ function ToolbarButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(buttonClass, active && "border-[var(--accent)] bg-emerald-400/10 text-emerald-200")}
+    >
+      {children}
+    </button>
+  );
+}
+
+function IconMenuButton({
+  children,
+  label,
+  tone,
+  onClick
+}: {
+  children: React.ReactNode;
+  label: string;
+  tone?: "danger";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+      className={cn(
+        "flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]",
+        tone === "danger" && "text-red-300 hover:bg-red-500/15 hover:text-red-200"
+      )}
     >
       {children}
     </button>

@@ -113,7 +113,6 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
   addProseMirrorPlugins() {
     const { onOpen, onUpdate, onClose } = this.options;
     let isOpen = false;
-    let startPos = -1;
 
     return [
       new Plugin({
@@ -123,7 +122,6 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
             if (isOpen) {
               if (event.key === "Escape") {
                 isOpen = false;
-                startPos = -1;
                 onClose();
                 return true;
               }
@@ -160,14 +158,12 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
 
               if (!isOpen) {
                 isOpen = true;
-                startPos = from;
                 onOpen(menuState);
               } else {
                 onUpdate(menuState);
               }
             } else if (isOpen) {
               isOpen = false;
-              startPos = -1;
               onClose();
             }
           },

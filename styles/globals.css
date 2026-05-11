@@ -261,8 +261,17 @@ textarea {
 
 .prose-editor img,
 .prose-editor iframe {
+  background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
+  border: 1px solid var(--border);
   border-radius: 8px;
+  display: block;
+  margin: 1rem 0;
   max-width: 100%;
+}
+
+.prose-editor img.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .prose-editor hr {
