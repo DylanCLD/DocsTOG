@@ -80,6 +80,18 @@ type CurrentInternalTarget = { type: "page" | "document"; id: string };
 type InternalLinkTab = InternalLinkTarget["type"];
 type InternalLinkPickerMode = "all" | "pages";
 type EditorToast = { id: number; message: string; tone: "success" | "error" | "info" };
+type LinkMark = { readonly type: { readonly name: string }; readonly attrs: Record<string, unknown> };
+type LinkPositionView = {
+  readonly state: {
+    readonly doc: {
+      resolve: (pos: number) => {
+        marks: () => readonly LinkMark[];
+        readonly nodeBefore?: { readonly marks?: readonly LinkMark[] } | null;
+        readonly nodeAfter?: { readonly marks?: readonly LinkMark[] } | null;
+      };
+    };
+  };
+};
 
 const buttonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text)] disabled:opacity-45";
@@ -196,6 +208,38 @@ function pruneProtectedImageSrcs(protectedImageSrcs: Map<string, number>) {
   }
 }
 
+function getAnchorHrefFromTarget(target: EventTarget | null) {
+  let element: Element | null = null;
+
+  if (target instanceof Element) {
+    element = target;
+  } else if (typeof Text !== "undefined" && target instanceof Text) {
+    element = target.parentElement;
+  }
+
+  return element?.closest("a[href]")?.getAttribute("href")?.trim() || null;
+}
+
+function getLinkHrefAtPosition(view: LinkPositionView, pos: number) {
+  const resolved = view.state.doc.resolve(pos);
+  const marks = [
+    ...resolved.marks(),
+    ...(resolved.nodeBefore?.marks ?? []),
+    ...(resolved.nodeAfter?.marks ?? [])
+  ];
+  const href = marks.find((mark) => mark.type.name === "link")?.attrs.href;
+
+  return typeof href === "string" && href.trim() ? href.trim() : null;
+}
+
+function getLinkHrefFromEditorEvent(view: LinkPositionView, pos: number, event: MouseEvent) {
+  return getAnchorHrefFromTarget(event.target) ?? getLinkHrefAtPosition(view, pos);
+}
+
+function isInternalEditorHref(href: string | null | undefined): href is string {
+  return Boolean(href?.startsWith("/pages/") || href?.startsWith("/documents/"));
+}
+
 export function RichEditor({
   value,
   onSave,
@@ -247,6 +291,17 @@ export function RichEditor({
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3600);
   }, []);
+
+  const openEditorHref = useCallback(
+    (href: string) => {
+      if (href.startsWith("/")) {
+        router.push(href);
+      } else {
+        window.open(href, "_blank", "noopener,noreferrer");
+      }
+    },
+    [router]
+  );
 
   const initialContent = useMemo(() => {
     if (value && typeof value === "object") {
@@ -488,10 +543,8 @@ export function RichEditor({
       debouncedSave.run(content);
     },
     editorProps: {
-      handleClick: (_view, _pos, event) => {
-        const element = event.target instanceof Element ? event.target : null;
-        const anchor = element?.closest("a[href]");
-        const href = anchor?.getAttribute("href");
+      handleClick: (view, pos, event) => {
+        const href = getLinkHrefFromEditorEvent(view, pos, event);
 
         if (!href) {
           return false;
@@ -501,12 +554,7 @@ export function RichEditor({
           return false;
         }
 
-        if (href.startsWith("/")) {
-          router.push(href);
-        } else {
-          window.open(href, "_blank", "noopener,noreferrer");
-        }
-
+        openEditorHref(href);
         return true;
       },
       handlePaste: (_view, event) => {
@@ -551,16 +599,14 @@ export function RichEditor({
         void pasteImageSrc(imageSrc);
         return true;
       },
-      handleDoubleClick: (_view, _pos, event) => {
-        const element = event.target instanceof Element ? event.target : null;
-        const anchor = element?.closest("a[href]");
-        const href = anchor?.getAttribute("href");
+      handleDoubleClick: (view, pos, event) => {
+        const href = getLinkHrefFromEditorEvent(view, pos, event);
 
-        if (!href || (!href.startsWith("/pages/") && !href.startsWith("/documents/"))) {
+        if (!isInternalEditorHref(href)) {
           return false;
         }
 
-        router.push(href);
+        openEditorHref(href);
         return true;
       },
       handleKeyDown: (_view, event) => {
@@ -933,7 +979,12 @@ export function RichEditor({
   const toolbarDisabled = readOnly;
   const activeLinkHref = editor.getAttributes("link").href as string | undefined;
   const activeImageSrc = editor.getAttributes("image").src as string | undefined;
-  const isInternalLinkActive = Boolean(activeLinkHref?.startsWith("/pages/") || activeLinkHref?.startsWith("/documents/"));
+  const isInternalLinkActive = isInternalEditorHref(activeLinkHref);
+  const activeLinkAccessLabel = activeLinkHref?.startsWith("/pages/")
+    ? "Acceder a la page"
+    : activeLinkHref?.startsWith("/documents/")
+      ? "Acceder au document"
+      : "Ouvrir le lien";
   const childLabel = currentTarget?.type === "document" ? "sous-document" : "sous-page";
   const statusText =
     saveStatus === "saving"
@@ -980,6 +1031,44 @@ export function RichEditor({
       notify("Image supprimee", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Suppression impossible.";
+      notify(message, "error");
+    }
+  };
+
+  const openActiveLink = () => {
+    const href = editor.getAttributes("link").href;
+
+    if (typeof href === "string" && href.trim()) {
+      openEditorHref(href.trim());
+    }
+  };
+
+  const copyActiveLinkUrl = async () => {
+    const href = editor.getAttributes("link").href;
+
+    if (typeof href !== "string" || !href.trim()) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(href.trim());
+      notify("Lien copie", "success");
+    } catch {
+      notify("Copie impossible depuis ce navigateur", "error");
+    }
+  };
+
+  const removeActiveLink = async () => {
+    if (!editor) {
+      return;
+    }
+
+    try {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      await saveContent(editor.getJSON());
+      notify("Lien retire", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible de retirer le lien.";
       notify(message, "error");
     }
   };
@@ -1113,6 +1202,33 @@ export function RichEditor({
         <BubbleMenu
           editor={editor}
           updateDelay={80}
+          shouldShow={({ editor: menuEditor }) => {
+            const href = menuEditor.getAttributes("link").href;
+            return menuEditor.isActive("link") && typeof href === "string" && href.trim().length > 0;
+          }}
+          className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-2xl shadow-black/35"
+        >
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={openActiveLink}
+            className="h-8 rounded-md px-2.5 text-xs font-semibold text-[var(--text)] transition hover:bg-[var(--surface-elevated)]"
+          >
+            {activeLinkAccessLabel}
+          </button>
+          <IconMenuButton label="Copier le lien" onClick={() => void copyActiveLinkUrl()}>
+            <Copy className="h-4 w-4" />
+          </IconMenuButton>
+          <IconMenuButton label="Retirer le lien" tone="danger" onClick={() => void removeActiveLink()}>
+            <Trash2 className="h-4 w-4" />
+          </IconMenuButton>
+        </BubbleMenu>
+      )}
+
+      {!readOnly && (
+        <BubbleMenu
+          editor={editor}
+          updateDelay={80}
           shouldShow={({ editor: menuEditor }) => menuEditor.isActive("image")}
           className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-2xl shadow-black/35"
         >
@@ -1134,7 +1250,7 @@ export function RichEditor({
           updateDelay={80}
           shouldShow={({ editor: menuEditor }) => {
             const { from, to, empty } = menuEditor.state.selection;
-            return !empty && menuEditor.state.doc.textBetween(from, to, " ").trim().length > 0;
+            return !menuEditor.isActive("link") && !empty && menuEditor.state.doc.textBetween(from, to, " ").trim().length > 0;
           }}
           className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-2xl shadow-black/35"
         >
