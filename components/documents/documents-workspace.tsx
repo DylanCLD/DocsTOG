@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Grid2X2, ListFilter, Plus, Search } from "lucide-react";
+import { Grid2X2, ListFilter, Plus, Search, Star } from "lucide-react";
 import { DocumentTreeNav } from "@/components/documents/document-tree-nav";
 import { createDocument } from "@/lib/actions/managers";
 import { Badge } from "@/components/ui/badge";
@@ -69,18 +69,20 @@ export function DocumentsWorkspace({
   }, [documents]);
 
   const filtered = useMemo(() => {
-    return documents.filter((document) => {
-      const searchTarget = `${document.title} ${document.short_description ?? ""}`.toLowerCase();
-      const documentTags = document.document_tags?.map((item) => item.tags?.name).filter(Boolean) ?? [];
+    return documents
+      .filter((document) => {
+        const searchTarget = `${document.title} ${document.short_description ?? ""}`.toLowerCase();
+        const documentTags = document.document_tags?.map((item) => item.tags?.name).filter(Boolean) ?? [];
 
-      return (
-        (!query || searchTarget.includes(query.toLowerCase())) &&
-        (status === "all" || document.status === status) &&
-        (priority === "all" || document.priority === priority) &&
-        (responsible === "all" || document.responsible_id === responsible) &&
-        (tag === "all" || documentTags.includes(tag))
-      );
-    });
+        return (
+          (!query || searchTarget.includes(query.toLowerCase())) &&
+          (status === "all" || document.status === status) &&
+          (priority === "all" || document.priority === priority) &&
+          (responsible === "all" || document.responsible_id === responsible) &&
+          (tag === "all" || documentTags.includes(tag))
+        );
+      })
+      .sort((a, b) => (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0));
   }, [documents, priority, query, responsible, status, tag]);
   const hasActiveFilters = Boolean(query || status !== "all" || priority !== "all" || responsible !== "all" || tag !== "all");
 
@@ -202,7 +204,10 @@ function DocumentCard({ document }: { document: DocumentRecord }) {
       <Card className="h-full p-4 transition hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate font-semibold">{document.title}</h3>
+            <h3 className="flex items-center gap-2 truncate font-semibold">
+              {document.is_favorite && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />}
+              {document.title}
+            </h3>
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted)]">{document.short_description ?? "Sans description."}</p>
           </div>
           <Badge tone={priorityTones[document.priority]}>{PRIORITY_LABELS[document.priority]}</Badge>

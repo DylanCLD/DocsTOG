@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, CornerDownRight, FileText, GripVertical } from "lucide-react";
+import { ChevronRight, CornerDownRight, FileText, GripVertical, Star } from "lucide-react";
 import { PriorityBadge, StatusBadge, TagPills, UserAvatar } from "@/components/documents/document-badges";
 import { buildHierarchy, collectAncestorIds, type HierarchyNode } from "@/lib/hierarchy";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ export type DocumentTreeRecord = Pick<DocumentRecord, "id" | "manager_id" | "par
   sort_order?: number | null;
   status?: DocumentStatus;
   priority?: DocumentPriority;
+  is_favorite?: boolean;
   users?: Pick<Profile, "id" | "email" | "full_name" | "avatar_url"> | null;
   document_tags?: Array<{ tags: Tag | null }>;
 };
@@ -298,6 +299,7 @@ function DocumentTreeNode({
         >
           <span className="flex min-w-0 items-center gap-2">
             <FileText className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+            {node.item.is_favorite && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />}
             <span className="truncate font-medium">{node.item.title}</span>
             {!compact && (
               <span className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -378,6 +380,11 @@ function containsNode(node: HierarchyNode<DocumentTreeRecord>, id: string): bool
 
 function sortDocuments(documents: DocumentTreeRecord[]) {
   return [...documents].sort((a, b) => {
+    const favDelta = (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0);
+    if (favDelta !== 0) {
+      return favDelta;
+    }
+
     const orderDelta = (a.sort_order ?? 0) - (b.sort_order ?? 0);
     if (orderDelta !== 0) {
       return orderDelta;
