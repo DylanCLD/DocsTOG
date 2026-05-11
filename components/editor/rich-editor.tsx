@@ -55,9 +55,7 @@ import {
 import * as Y from "yjs";
 import { TableOfContents } from "@/components/editor/table-of-contents";
 import { SlashCommandsList, type SlashCommandsListRef } from "@/components/editor/slash-commands-list";
-import { MentionList, type MentionListRef } from "@/components/editor/mention-list";
 import { SlashCommands, SLASH_COMMANDS, type SlashCommand, type SlashMenuState } from "@/components/editor/slash-commands";
-import { MentionExtension, type MentionMenuState } from "@/components/editor/mention-extension";
 import { SupabaseYjsProvider } from "@/components/editor/supabase-yjs-provider";
 import { createSubDocument } from "@/lib/actions/managers";
 import { createSubPage } from "@/lib/actions/pages";
@@ -271,8 +269,6 @@ export function RichEditor({
 
   const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
   const slashListRef = useRef<SlashCommandsListRef | null>(null);
-  const [mentionMenu, setMentionMenu] = useState<MentionMenuState | null>(null);
-  const mentionListRef = useRef<MentionListRef | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -368,11 +364,6 @@ export function RichEditor({
         onOpen: (state) => setSlashMenu(state),
         onUpdate: (state) => setSlashMenu(state),
         onClose: () => setSlashMenu(null)
-      }),
-      MentionExtension.configure({
-        onOpen: (state) => setMentionMenu(state),
-        onUpdate: (state) => setMentionMenu(state),
-        onClose: () => setMentionMenu(null)
       })
     ],
     onUpdate: ({ editor: currentEditor }) => {
@@ -947,13 +938,6 @@ export function RichEditor({
             const handled = slashListRef.current.onKeyDown(event.nativeEvent);
             if (handled) event.preventDefault();
           }
-          if (mentionMenu) {
-            if (event.key === "Escape") { setMentionMenu(null); event.preventDefault(); return; }
-            if (mentionListRef.current) {
-              const handled = mentionListRef.current.onKeyDown(event.nativeEvent);
-              if (handled) event.preventDefault();
-            }
-          }
         }}
       />
 
@@ -999,29 +983,6 @@ export function RichEditor({
       </div>
     </div>
     <TableOfContents editor={editor} />
-
-      {mentionMenu && typeof document !== "undefined" &&
-        createPortal(
-          <div style={{ position: "fixed", top: mentionMenu.coords.top, left: mentionMenu.coords.left, zIndex: 50 }}>
-            <MentionList
-              ref={mentionListRef}
-              items={users.filter((u) => {
-                const q = mentionMenu.query.toLowerCase();
-                return !q || `${u.full_name ?? ""} ${u.email}`.toLowerCase().includes(q);
-              }).slice(0, 8)}
-              command={(item) => {
-                if (!editor) return;
-                const label = `@${item.full_name ?? item.email}`;
-                editor.chain().focus().deleteRange({ from: mentionMenu.from, to: mentionMenu.to }).insertContent(
-                  `<span class="mention" data-mention-id="${item.id}">${label}</span>&nbsp;`
-                ).run();
-                setMentionMenu(null);
-              }}
-            />
-          </div>,
-          document.body
-        )
-      }
     </div>
   );
 }
