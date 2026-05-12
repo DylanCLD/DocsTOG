@@ -734,27 +734,35 @@ export function RichEditor({
 
     const selection = internalLinkSelectionRef.current;
     const label = fallbackTitle.trim() || href;
-    let chain = editor.chain().focus();
-
-    if (selection) {
-      chain = chain.setTextSelection({ from: selection.from, to: selection.to });
-    }
+    let success: boolean;
 
     if (!selection || selection.empty) {
-      chain
+      success = editor
+        .chain()
+        .focus()
         .insertContent({
           type: "text",
           text: label,
-          marks: [
-            {
-              type: "link",
-              attrs: { href }
-            }
-          ]
+          marks: [{ type: "link", attrs: { href } }]
         })
         .run();
     } else {
-      chain.extendMarkRange("link").setLink({ href }).run();
+      success = editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: selection.from, to: selection.to })
+        .setLink({ href })
+        .run();
+    }
+
+    if (process.env.NODE_ENV === "development") {
+      const docContainsHref = JSON.stringify(editor.getJSON()).includes(href);
+      console.debug("[editor-link] applyInternalLink", {
+        success,
+        href,
+        selection,
+        docContainsHref
+      });
     }
 
     setInternalLinkOpen(false);
