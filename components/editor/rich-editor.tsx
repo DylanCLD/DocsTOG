@@ -545,19 +545,7 @@ export function RichEditor({
     editorProps: {
       handleClick: (view, pos, event) => {
         const href = getLinkHrefFromEditorEvent(view, pos, event);
-
-        if (!href) {
-          return false;
-        }
-
-        if (event.detail >= 2 && isInternalEditorHref(href)) {
-          openEditorHref(href);
-          return true;
-        }
-
-        if (!readOnly && !event.metaKey && !event.ctrlKey) {
-          return false;
-        }
+        if (!href) return false;
 
         openEditorHref(href);
         return true;
