@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Node, type JSONContent } from "@tiptap/core";
+import { NodeSelection } from "@tiptap/pm/state";
+import { findTable } from "@tiptap/pm/tables";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import Color from "@tiptap/extension-color";
@@ -45,10 +47,13 @@ import {
   Minus,
   PanelTop,
   Pilcrow,
+  Plus,
   Quote,
   Redo2,
+  Rows3,
   Search,
   TableIcon,
+  TableProperties,
   Trash2,
   UnderlineIcon,
   Undo2,
@@ -238,6 +243,10 @@ function getLinkHrefFromEditorEvent(view: LinkPositionView, pos: number, event: 
 
 function isInternalEditorHref(href: string | null | undefined): href is string {
   return Boolean(href?.startsWith("/pages/") || href?.startsWith("/documents/"));
+}
+
+function isTableNodeSelection(selection: unknown): selection is NodeSelection {
+  return selection instanceof NodeSelection && selection.node.type.name === "table";
 }
 
 export function RichEditor({
@@ -494,7 +503,8 @@ export function RichEditor({
         types: ["heading", "paragraph"]
       }),
       Table.configure({
-        resizable: true
+        resizable: true,
+        allowTableNodeSelection: true
       }),
       TableRow,
       TableHeader,
@@ -1063,6 +1073,59 @@ export function RichEditor({
     }
   };
 
+  const selectActiveTable = () => {
+    if (!editor) {
+      return false;
+    }
+
+    const { state, view } = editor;
+    const { selection } = state;
+    const tablePosition = isTableNodeSelection(selection) ? selection.from : findTable(selection.$from)?.pos;
+
+    if (typeof tablePosition !== "number") {
+      notify("Aucun tableau selectionne", "error");
+      return false;
+    }
+
+    view.dispatch(state.tr.setSelection(NodeSelection.create(state.doc, tablePosition)).scrollIntoView());
+    view.focus();
+    return true;
+  };
+
+  const runTableAction = async (action: () => boolean, successMessage: string) => {
+    if (!editor) {
+      return;
+    }
+
+    try {
+      const changed = action();
+
+      if (!changed) {
+        notify("Action impossible sur ce tableau", "error");
+        return;
+      }
+
+      await saveContent(editor.getJSON());
+      notify(successMessage, "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Action tableau impossible.";
+      notify(message, "error");
+    }
+  };
+
+  const deleteActiveTable = async () => {
+    await runTableAction(
+      () => {
+        if (isTableNodeSelection(editor.state.selection)) {
+          return editor.chain().focus().deleteSelection().run();
+        }
+
+        return editor.chain().focus().deleteTable().run();
+      },
+      "Tableau supprime"
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
     <div className="min-w-0 w-full flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
@@ -1165,9 +1228,6 @@ export function RichEditor({
         <ToolbarButton label="Tableau" disabled={toolbarDisabled} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>
           <TableIcon className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton label="Colonne +" disabled={toolbarDisabled || !editor.isActive("table")} onClick={() => editor.chain().focus().addColumnAfter().run()}>
-          <Columns3 className="h-4 w-4" />
-        </ToolbarButton>
         <Divider />
         <input
           type="color"
@@ -1231,6 +1291,51 @@ export function RichEditor({
           <IconMenuButton label="Supprimer" tone="danger" onClick={() => void deleteActiveImage()}>
             <Trash2 className="h-4 w-4" />
           </IconMenuButton>
+        </BubbleMenu>
+      )}
+
+      {!readOnly && (
+        <BubbleMenu
+          editor={editor}
+          updateDelay={80}
+          shouldShow={({ editor: menuEditor }) => {
+            const { selection } = menuEditor.state;
+            return menuEditor.isActive("table") || isTableNodeSelection(selection);
+          }}
+          className="flex max-w-[min(38rem,calc(100vw-2rem))] flex-wrap items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1 shadow-2xl shadow-black/35"
+        >
+          <TableMenuButton label="Ligne au-dessus" onClick={() => void runTableAction(() => editor.chain().focus().addRowBefore().run(), "Ligne ajoutee")}>
+            <Rows3 className="h-4 w-4" />
+            <Plus className="h-3 w-3" />
+          </TableMenuButton>
+          <TableMenuButton label="Ligne en-dessous" onClick={() => void runTableAction(() => editor.chain().focus().addRowAfter().run(), "Ligne ajoutee")}>
+            <Rows3 className="h-4 w-4" />
+            <Plus className="h-3 w-3" />
+          </TableMenuButton>
+          <TableMenuButton label="Supprimer ligne" tone="danger" onClick={() => void runTableAction(() => editor.chain().focus().deleteRow().run(), "Ligne supprimee")}>
+            <Rows3 className="h-4 w-4" />
+            <Trash2 className="h-3 w-3" />
+          </TableMenuButton>
+          <Divider />
+          <TableMenuButton label="Colonne avant" onClick={() => void runTableAction(() => editor.chain().focus().addColumnBefore().run(), "Colonne ajoutee")}>
+            <Columns3 className="h-4 w-4" />
+            <Plus className="h-3 w-3" />
+          </TableMenuButton>
+          <TableMenuButton label="Colonne apres" onClick={() => void runTableAction(() => editor.chain().focus().addColumnAfter().run(), "Colonne ajoutee")}>
+            <Columns3 className="h-4 w-4" />
+            <Plus className="h-3 w-3" />
+          </TableMenuButton>
+          <TableMenuButton label="Supprimer colonne" tone="danger" onClick={() => void runTableAction(() => editor.chain().focus().deleteColumn().run(), "Colonne supprimee")}>
+            <Columns3 className="h-4 w-4" />
+            <Trash2 className="h-3 w-3" />
+          </TableMenuButton>
+          <Divider />
+          <TableMenuButton label="Selectionner tableau" onClick={selectActiveTable}>
+            <TableProperties className="h-4 w-4" />
+          </TableMenuButton>
+          <TableMenuButton label="Supprimer tableau" tone="danger" onClick={() => void deleteActiveTable()}>
+            <Trash2 className="h-4 w-4" />
+          </TableMenuButton>
         </BubbleMenu>
       )}
 
@@ -1473,6 +1578,35 @@ function IconMenuButton({
       )}
     >
       {children}
+    </button>
+  );
+}
+
+function TableMenuButton({
+  children,
+  label,
+  tone,
+  onClick
+}: {
+  children: React.ReactNode;
+  label: string;
+  tone?: "danger";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+      className={cn(
+        "flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]",
+        tone === "danger" && "text-red-300 hover:bg-red-500/15 hover:text-red-200"
+      )}
+    >
+      {children}
+      <span>{label}</span>
     </button>
   );
 }

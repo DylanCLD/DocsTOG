@@ -246,6 +246,11 @@ textarea {
   width: 100%;
 }
 
+.prose-editor .tableWrapper {
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
 .prose-editor td,
 .prose-editor th {
   border: 1px solid var(--border);
@@ -259,6 +264,11 @@ textarea {
   font-weight: 700;
 }
 
+.prose-editor .selectedCell {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
 .prose-editor img,
 .prose-editor iframe {
   background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
@@ -270,6 +280,12 @@ textarea {
 }
 
 .prose-editor img.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.prose-editor table.ProseMirror-selectednode,
+.prose-editor .tableWrapper.ProseMirror-selectednode table {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
