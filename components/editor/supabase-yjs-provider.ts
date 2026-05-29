@@ -31,16 +31,25 @@ function base64ToUint8(value: string) {
   return bytes;
 }
 
+const SYNC_SETTLE_MS = 700;
+
 export class SupabaseYjsProvider {
   awareness: Awareness;
+  synced = false;
+  whenSynced: Promise<void>;
   private channel: RealtimeChannel;
   private doc: Y.Doc;
   private origin = {};
   private subscribed = false;
+  private resolveSynced!: () => void;
+  private syncTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor({ doc, room }: { doc: Y.Doc; room: string }) {
     this.doc = doc;
     this.awareness = new Awareness(doc);
+    this.whenSynced = new Promise<void>((resolve) => {
+      this.resolveSynced = resolve;
+    });
     const supabase = createClient();
     this.channel = supabase.channel(room, {
       config: {
@@ -58,6 +67,7 @@ export class SupabaseYjsProvider {
       .on("broadcast", { event: "yjs-update" }, ({ payload }) => {
         if (typeof payload?.update === "string") {
           Y.applyUpdate(this.doc, base64ToUint8(payload.update), this.origin);
+          this.markSynced();
         }
       })
       .on("broadcast", { event: "awareness-update" }, ({ payload }) => {
@@ -74,6 +84,7 @@ export class SupabaseYjsProvider {
         if (status === "SUBSCRIBED") {
           this.subscribed = true;
           this.sendBroadcast("sync-request", {});
+          this.syncTimeout = setTimeout(() => this.markSynced(), SYNC_SETTLE_MS);
           return;
         }
 
@@ -83,11 +94,29 @@ export class SupabaseYjsProvider {
 
   destroy() {
     this.subscribed = false;
+    if (this.syncTimeout) {
+      clearTimeout(this.syncTimeout);
+      this.syncTimeout = null;
+    }
+    this.markSynced();
     this.doc.off("update", this.handleLocalDocumentUpdate);
     this.awareness.off("update", this.handleLocalAwarenessUpdate);
     this.awareness.destroy();
     void this.channel.unsubscribe();
   }
+
+  private markSynced = () => {
+    if (this.synced) {
+      return;
+    }
+
+    this.synced = true;
+    if (this.syncTimeout) {
+      clearTimeout(this.syncTimeout);
+      this.syncTimeout = null;
+    }
+    this.resolveSynced();
+  };
 
   private handleLocalDocumentUpdate = (update: Uint8Array, origin: unknown) => {
     if (origin === this.origin) {

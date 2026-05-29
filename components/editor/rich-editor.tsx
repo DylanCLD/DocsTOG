@@ -630,66 +630,40 @@ export function RichEditor({
     }
 
     seededRef.current = false;
+    let cancelled = false;
+    const { doc, provider } = collaborationState;
 
-    const trySeed = (isFinalAttempt = false) => {
-      if (seededRef.current || !editor || editor.isDestroyed) return;
+    void provider.whenSynced.then(() => {
+      if (cancelled || editor.isDestroyed) return;
 
-      const currentContent = editor.getJSON();
-      if (initialImageSrcs.length > 0 && hasAllImageSrcs(currentContent, initialImageSrcs)) {
-        seededRef.current = true;
-        return;
-      }
+      const fragmentEmpty = doc.getXmlFragment("default").length === 0;
 
-      const doc = editor.state.doc;
-      const isEffectivelyEmpty =
-        doc.childCount === 0 ||
-        (doc.childCount === 1 &&
-          doc.firstChild?.type.name === "paragraph" &&
-          doc.firstChild.content.size === 0);
-
-      if (isEffectivelyEmpty || isFinalAttempt) {
+      if (fragmentEmpty) {
         try {
-          editor.commands.setContent(initialContent, {
-            emitUpdate: false,
-            errorOnInvalidContent: true
-          });
+          editor.commands.setContent(initialContent, { emitUpdate: false });
         } catch (err) {
           console.warn("[editor-seed] setContent failed", err);
-          if (isFinalAttempt) {
-            setSaveStatus("error");
-          }
+          setSaveStatus("error");
           return;
         }
       }
 
-      if (hasAllImageSrcs(editor.getJSON(), initialImageSrcs)) {
-        seededRef.current = true;
-        return;
-      }
-
-      if (isFinalAttempt) {
-        console.error("[editor-seed] initial images missing after seed", {
-          expectedImageCount: initialImageSrcs.length,
+      // Pitfall #3 : verifier les images attendues. NE PAS re-seed sur un doc
+      // non-vide (= chemin de duplication). Si manquantes -> erreur loggee.
+      if (initialImageSrcs.length > 0 && !hasAllImageSrcs(editor.getJSON(), initialImageSrcs)) {
+        console.error("[editor-seed] expected images missing after sync/seed", {
+          fragmentWasEmpty: fragmentEmpty,
           expectedImageSrcs: initialImageSrcs,
           currentImageSrcs: extractImageSrcs(editor.getJSON())
         });
         setSaveStatus("error");
-        return;
       }
 
-      if (initialImageSrcs.length === 0) {
-        seededRef.current = true;
-      }
-    };
-
-    const t1 = window.setTimeout(() => trySeed(), 100);
-    const t2 = window.setTimeout(() => trySeed(), 600);
-    const t3 = window.setTimeout(() => trySeed(true), 1500);
+      seededRef.current = true;
+    });
 
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
+      cancelled = true;
     };
   }, [collaborationState, editor, initialContent, initialImageSrcs]);
 
