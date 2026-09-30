@@ -161,10 +161,16 @@ function renderList(list: TiptapNode, depth: number): string {
           ? `${start + index}. `
           : "- ";
 
-      const body = childrenOf(item)
-        .map((child) => renderBlock(child, depth + 1))
-        .filter((block) => block.trim() !== "")
-        .join("\n");
+      // Paragraphs of one item are separated by a blank line (or they would read back as line
+      // breaks); a nested list follows its text directly.
+      const isList = (child: TiptapNode) => /List$/.test(typeOf(child));
+      const parts = childrenOf(item)
+        .map((child) => ({ list: isList(child), text: renderBlock(child, depth + 1) }))
+        .filter((part) => part.text.trim() !== "");
+      const body = parts.reduce(
+        (all, part, at) => (at === 0 ? part.text : `${all}${part.list || parts[at - 1].list ? "\n" : "\n\n"}${part.text}`),
+        ""
+      );
 
       return `${marker}${indentContinuation(body, marker.length)}`.trimEnd();
     })
