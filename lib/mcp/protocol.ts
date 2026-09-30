@@ -25,6 +25,11 @@ export type ToolDefinition = {
     idempotentHint: boolean;
     openWorldHint: boolean;
   };
+  /**
+   * Evaluated on every request. A tool that reports false is left out of tools/list and
+   * refuses calls, which is how write tools stay off until the server owner turns them on.
+   */
+  enabled?: () => boolean;
   /** Receives the raw `arguments` value; validation is the tool's job. */
   run: (args: unknown) => Promise<ToolResult>;
 };
@@ -33,7 +38,8 @@ export type McpServerDefinition = {
   name: string;
   title: string;
   version: string;
-  instructions: string;
+  /** A function is evaluated on every initialize, for instructions that depend on the configuration. */
+  instructions: string | (() => string);
   tools: ToolDefinition[];
 };
 
@@ -72,6 +78,10 @@ function resultResponse(id: string | number, result: unknown) {
   return { jsonrpc: "2.0" as const, id, result };
 }
 
+function activeTools(server: McpServerDefinition) {
+  return server.tools.filter((tool) => tool.enabled?.() ?? true);
+}
+
 function negotiateVersion(requested: unknown) {
   return typeof requested === "string" && (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
     ? requested
@@ -86,6 +96,14 @@ async function callTool(id: string | number, params: unknown, server: McpServerD
   const tool = server.tools.find((candidate) => candidate.name === params.name);
   if (!tool) {
     return errorResponse(id, ERROR.invalidParams, `Unknown tool: ${params.name}`);
+  }
+
+  // A client may still hold a tool list from before the tool was turned off.
+  if (tool.enabled && !tool.enabled()) {
+    return resultResponse(id, {
+      content: [{ type: "text", text: `Error: ${tool.name} is disabled on this server (write access is not enabled).` }],
+      isError: true
+    });
   }
 
   try {
@@ -109,14 +127,14 @@ async function handleRequest(message: Record<string, unknown>, server: McpServer
         protocolVersion: negotiateVersion(params.protocolVersion),
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: server.name, title: server.title, version: server.version },
-        instructions: server.instructions
+        instructions: typeof server.instructions === "function" ? server.instructions() : server.instructions
       });
     }
     case "ping":
       return resultResponse(id, {});
     case "tools/list":
       return resultResponse(id, {
-        tools: server.tools.map(({ name, title, description, inputSchema, annotations }) => ({
+        tools: activeTools(server).map(({ name, title, description, inputSchema, annotations }) => ({
           name,
           title,
           description,

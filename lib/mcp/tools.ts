@@ -2,55 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { fetchBacklinks } from "@/lib/backlinks";
 import { collectAncestors } from "@/lib/hierarchy";
-import type { JsonSchemaObject, ToolDefinition, ToolResult } from "@/lib/mcp/protocol";
+import type { ToolDefinition } from "@/lib/mcp/protocol";
 import { foldForSearch, tiptapToMarkdown, tiptapToPlainText } from "@/lib/mcp/tiptap-markdown";
+import { fail, idProperty, json, parseArguments, ROW_LIMIT, rows, schema, text, uuid } from "@/lib/mcp/tool-kit";
 
 // Every tool here is read-only: only SELECT queries are issued, always through the
 // service-role client, so nothing may be added that writes without a deliberate review.
+// The optional write tools live apart, in write-tools.ts, behind MCP_ALLOW_WRITE.
 
-// Supabase returns at most 1000 rows per request; results built from a full read say so.
-const ROW_LIMIT = 1000;
 const DEFAULT_MAX_CHARS = 50_000;
 const MAX_CHARS_CAP = 200_000;
 
 const STATUSES = ["todo", "in_progress", "review", "done"] as const;
 const PRIORITIES = ["low", "medium", "high", "critical"] as const;
-
-type Query = PromiseLike<{ data: unknown; error: { message: string } | null }>;
-
-async function rows<T>(query: Query): Promise<T[]> {
-  const { data, error } = await query;
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return Array.isArray(data) ? (data as T[]) : [];
-}
-
-function text(value: string): ToolResult {
-  return { content: [{ type: "text", text: value }] };
-}
-
-function json(value: unknown): ToolResult {
-  return text(JSON.stringify(value));
-}
-
-function fail(message: string): ToolResult {
-  return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
-}
-
-function parseArguments<S extends z.ZodTypeAny>(
-  schema: S,
-  args: unknown
-): { ok: true; data: z.infer<S> } | { ok: false; result: ToolResult } {
-  const parsed = schema.safeParse(args ?? {});
-  if (parsed.success) {
-    return { ok: true, data: parsed.data };
-  }
-
-  const issues = parsed.error.issues.map((issue) => `${issue.path.join(".") || "arguments"}: ${issue.message}`);
-  return { ok: false, result: fail(`Invalid arguments. ${issues.join("; ")}`) };
-}
 
 function limitText(value: string, max: number) {
   if (value.length <= max) {
@@ -122,7 +86,6 @@ const DOCUMENT_LIST_COLUMNS =
 // ---------------------------------------------------------------------------------------
 // Inputs (each JSON Schema below must describe the same fields as its zod schema)
 
-const uuid = z.string().uuid();
 const maxChars = z.number().int().min(1000).max(MAX_CHARS_CAP).default(DEFAULT_MAX_CHARS);
 const format = z.enum(["markdown", "json"]).default("markdown");
 
@@ -161,7 +124,6 @@ const getDocumentInput = z.object({ id: uuid, format, max_chars: maxChars }).str
 
 const getBacklinksInput = z.object({ type: z.enum(["page", "document"]), id: uuid }).strict();
 
-const idProperty = (what: string) => ({ type: "string", format: "uuid", description: `UUID of the ${what}.` });
 const formatProperty = {
   type: "string",
   enum: ["markdown", "json"],
@@ -182,10 +144,6 @@ const limitProperty = (max: number, fallback: number) => ({
   default: fallback,
   description: "Maximum number of results."
 });
-
-function schema(properties: JsonSchemaObject["properties"], required: string[] = []): JsonSchemaObject {
-  return { type: "object", properties, ...(required.length ? { required } : {}), additionalProperties: false };
-}
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 
