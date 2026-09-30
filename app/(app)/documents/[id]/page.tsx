@@ -1,13 +1,19 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock } from "lucide-react";
+import { FileText } from "lucide-react";
+import { BacklinksPanel, BacklinksSkeleton } from "@/components/backlinks/backlinks-panel";
 import { DocumentEditorClient } from "@/components/documents/document-editor-client";
+import { DocumentHeaderBar } from "@/components/documents/document-header-bar";
 import { DocumentTreeNav, type DocumentTreeRecord } from "@/components/documents/document-tree-nav";
-import { Button } from "@/components/ui/button";
-import { DeleteButton } from "@/components/ui/delete-button";
+import { TreeLayout } from "@/components/layout/tree-layout";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/navigation/breadcrumbs";
+import { SubItemsList } from "@/components/navigation/sub-items-list";
 import { deleteDocument, moveDocumentInTree, updateDocumentOrder } from "@/lib/actions/managers";
+import { fetchBacklinks } from "@/lib/backlinks";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
+import { collectAncestors } from "@/lib/hierarchy";
 import { buildInternalLinkTargets } from "@/lib/internal-links";
+import { getPanelPrefs } from "@/lib/panel-prefs-server";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/utils";
 import type { DocumentManager, DocumentRecord, Profile } from "@/types";
@@ -42,8 +48,11 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   }
 
   const document = data as DocumentWithManager;
+  // Started now so it runs alongside the queries below; the panel awaits it inside
+  // <Suspense>, so it never delays the page. fetchBacklinks never rejects.
+  const backlinks = fetchBacklinks(supabase, { type: "document", id: document.id });
 
-  const [usersResult, siblingDocumentsResult, allPagesResult, allDocumentsResult] = await Promise.all([
+  const [usersResult, siblingDocumentsResult, allPagesResult, allDocumentsResult, prefs] = await Promise.all([
     supabase.from("users").select("*").order("full_name", { ascending: true }),
     fetchNavigationDocuments(supabase, document.manager_id),
     supabase
@@ -55,7 +64,8 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
       .from("documents")
       .select("id,parent_document_id,title,short_description,document_managers(name)")
       .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: true }),
+    getPanelPrefs()
   ]);
 
   const users = (usersResult.data ?? []) as Profile[];
@@ -110,23 +120,32 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
   const canReorderDocuments = writer && siblingDocumentsResult.canReorder;
   const internalLinkTargets = buildInternalLinkTargets(allPages, allDocuments);
 
+  const managerName = document.document_managers?.name ?? "Gestionnaire";
+  const breadcrumbs: BreadcrumbItem[] = [
+    { label: "Gestionnaires", href: "/managers" },
+    { label: managerName, href: `/managers/${document.manager_id}`, icon: document.document_managers?.icon },
+    ...collectAncestors(siblings, document.id, (item) => item.parent_document_id).map((ancestor) => ({
+      label: ancestor.title,
+      href: `/documents/${ancestor.id}`
+    })),
+    { label: document.title }
+  ];
+  const subDocuments = siblings
+    .filter((item) => item.parent_document_id === document.id)
+    .map((child) => ({
+      id: child.id,
+      title: child.title,
+      href: `/documents/${child.id}`,
+      icon: <FileText className="h-3.5 w-3.5 text-[var(--accent)]" />
+    }));
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
-      <aside className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
-        <Button variant="ghost" size="sm" asChildCompat>
-          <Link href={`/managers/${document.manager_id}`}>
-            <ArrowLeft className="h-4 w-4" />
-            Retour
-          </Link>
-        </Button>
-
-        <div className="border-t border-[var(--border)] pt-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
-            {document.document_managers?.icon} {document.document_managers?.name}
-          </p>
-          <h2 className="mt-1 text-sm font-semibold">Documents du gestionnaire</h2>
-        </div>
-
+    <TreeLayout
+      eyebrow={`${document.document_managers?.icon ?? ""} ${managerName}`.trim()}
+      heading="Documents du gestionnaire"
+      initialWidth={prefs.treeWidth}
+      initialCollapsed={prefs.treeCollapsed}
+      tree={
         <DocumentTreeNav
           documents={siblings}
           activeDocumentId={document.id}
@@ -136,26 +155,37 @@ export default async function DocumentDetail({ params }: { params: Promise<{ id:
           onReorder={updateDocumentOrder}
           onMove={moveDocumentInTree}
         />
-      </aside>
-
-      <main className="min-w-0 space-y-6">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-          <div>
-            <Link href={`/managers/${document.manager_id}`} className="text-sm font-medium text-[var(--accent)]">
-              {document.document_managers?.icon} {document.document_managers?.name}
-            </Link>
-            <h1 className="mt-1 text-3xl font-semibold">{document.title}</h1>
-            <p className="mt-2 flex items-center gap-2 text-sm text-[var(--muted)]">
-              <CalendarClock className="h-4 w-4" />
-              Créé {formatDateTime(document.created_at)} · modifié {formatDateTime(document.updated_at)}
-            </p>
-          </div>
-          {canDelete(profile.role) && <DeleteButton action={deleteDocument.bind(null, document.id, document.manager_id)} />}
-        </div>
-
+      }
+    >
+      <div className="space-y-3">
+        <Breadcrumbs items={breadcrumbs} />
+        <DocumentHeaderBar
+          key={document.id}
+          document={{
+            id: document.id,
+            manager_id: document.manager_id,
+            title: document.title,
+            short_description: document.short_description,
+            status: document.status,
+            priority: document.priority,
+            responsible_id: document.responsible_id,
+            is_favorite: document.is_favorite,
+            users: document.users,
+            document_tags: document.document_tags
+          }}
+          users={users}
+          readOnly={!writer}
+          createdLabel={formatDateTime(document.created_at)}
+          updatedLabel={formatDateTime(document.updated_at)}
+          deleteAction={canDelete(profile.role) ? deleteDocument.bind(null, document.id, document.manager_id) : undefined}
+        />
+        <SubItemsList label="Sous-documents" items={subDocuments} />
         <DocumentEditorClient document={document} users={users} profile={profile} internalLinkTargets={internalLinkTargets} />
-      </main>
-    </div>
+        <Suspense fallback={<BacklinksSkeleton />}>
+          <BacklinksPanel result={backlinks} subject="ce document" />
+        </Suspense>
+      </div>
+    </TreeLayout>
   );
 }
 

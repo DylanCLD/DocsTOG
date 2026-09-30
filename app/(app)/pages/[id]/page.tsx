@@ -1,13 +1,18 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock } from "lucide-react";
+import { BacklinksPanel, BacklinksSkeleton } from "@/components/backlinks/backlinks-panel";
+import { TreeLayout } from "@/components/layout/tree-layout";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/navigation/breadcrumbs";
+import { SubItemsList } from "@/components/navigation/sub-items-list";
 import { PageEditorClient } from "@/components/pages/page-editor-client";
+import { PageHeaderBar } from "@/components/pages/page-header-bar";
 import { PageTreeNav } from "@/components/pages/page-tree-nav";
-import { Button } from "@/components/ui/button";
-import { DeleteButton } from "@/components/ui/delete-button";
 import { deletePage, movePageInTree, updatePageOrder } from "@/lib/actions/pages";
+import { fetchBacklinks } from "@/lib/backlinks";
 import { canDelete, canWrite, requireProfile } from "@/lib/auth";
+import { collectAncestors } from "@/lib/hierarchy";
 import { buildInternalLinkTargets } from "@/lib/internal-links";
+import { getPanelPrefs } from "@/lib/panel-prefs-server";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/utils";
 import type { PageRecord } from "@/types";
@@ -26,7 +31,10 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
   }
 
   const page = data as PageRecord;
-  const [allPagesResult, allDocumentsResult, usersResult] = await Promise.all([
+  // Started now so it runs alongside the queries below; the panel awaits it inside
+  // <Suspense>, so it never delays the page. fetchBacklinks never rejects.
+  const backlinks = fetchBacklinks(supabase, { type: "page", id: page.id });
+  const [allPagesResult, allDocumentsResult, usersResult, prefs] = await Promise.all([
     supabase
       .from("pages")
       .select("*")
@@ -37,7 +45,8 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
       .select("id,parent_document_id,title,short_description,document_managers(name)")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true }),
-    supabase.from("users").select("id,email,full_name")
+    supabase.from("users").select("id,email,full_name"),
+    getPanelPrefs()
   ]);
   let pages = (allPagesResult.data ?? []) as PageRecord[];
   let allDocuments = (allDocumentsResult.data ?? []) as Parameters<typeof buildInternalLinkTargets>[1];
@@ -60,19 +69,26 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
   const internalLinkTargets = buildInternalLinkTargets(pages, allDocuments);
   const users = (usersResult.data ?? []) as Array<{ id: string; email: string; full_name: string | null }>;
 
+  const breadcrumbs: BreadcrumbItem[] = [
+    { label: "Pages", href: "/pages" },
+    ...collectAncestors(pages, page.id, (item) => item.parent_page_id).map((ancestor) => ({
+      label: ancestor.title,
+      href: `/pages/${ancestor.id}`,
+      icon: ancestor.icon
+    })),
+    { label: page.title, icon: page.icon }
+  ];
+  const subPages = pages
+    .filter((item) => item.parent_page_id === page.id)
+    .map((child) => ({ id: child.id, title: child.title, href: `/pages/${child.id}`, icon: child.icon }));
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
-      <aside className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
-        <Button variant="ghost" size="sm" asChildCompat>
-          <Link href="/pages">
-            <ArrowLeft className="h-4 w-4" />
-            Retour
-          </Link>
-        </Button>
-        <div className="border-t border-[var(--border)] pt-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Pages</p>
-          <h2 className="mt-1 text-sm font-semibold">Arborescence</h2>
-        </div>
+    <TreeLayout
+      eyebrow="Pages"
+      heading="Arborescence"
+      initialWidth={prefs.treeWidth}
+      initialCollapsed={prefs.treeCollapsed}
+      tree={
         <PageTreeNav
           pages={pages}
           activePageId={page.id}
@@ -81,27 +97,25 @@ export default async function PageDetail({ params }: { params: Promise<{ id: str
           onReorder={updatePageOrder}
           onMove={movePageInTree}
         />
-      </aside>
-
-      <main className="min-w-0 space-y-6">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-          <div>
-            <p className="text-sm font-medium text-[var(--accent)]">Page</p>
-            <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
-              <span>{page.icon}</span>
-              {page.title}
-            </h1>
-            <p className="mt-2 flex items-center gap-2 text-sm text-[var(--muted)]">
-              <CalendarClock className="h-4 w-4" />
-              Créée {formatDateTime(page.created_at)} · modifiée {formatDateTime(page.updated_at)}
-            </p>
-          </div>
-          {canDelete(profile.role) && <DeleteButton action={deletePage.bind(null, page.id)} />}
-        </div>
-
-      <PageEditorClient page={page} profile={profile} internalLinkTargets={internalLinkTargets} users={users} />
-      </main>
-    </div>
+      }
+    >
+      <div className="space-y-3">
+        <Breadcrumbs items={breadcrumbs} />
+        <PageHeaderBar
+          key={page.id}
+          page={{ id: page.id, title: page.title, icon: page.icon, category: page.category, is_favorite: page.is_favorite }}
+          readOnly={!writer}
+          createdLabel={formatDateTime(page.created_at)}
+          updatedLabel={formatDateTime(page.updated_at)}
+          deleteAction={canDelete(profile.role) ? deletePage.bind(null, page.id) : undefined}
+        />
+        <SubItemsList label="Sous-pages" items={subPages} />
+        <PageEditorClient page={page} profile={profile} internalLinkTargets={internalLinkTargets} users={users} />
+        <Suspense fallback={<BacklinksSkeleton />}>
+          <BacklinksPanel result={backlinks} subject="cette page" />
+        </Suspense>
+      </div>
+    </TreeLayout>
   );
 }
 
