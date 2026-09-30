@@ -3,14 +3,15 @@ import { handleMcpPayload, SUPPORTED_PROTOCOL_VERSIONS } from "@/lib/mcp/protoco
 import { createDocsTogServer } from "@/lib/mcp/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Read-only MCP endpoint (Streamable HTTP, stateless JSON responses).
+// MCP endpoint (Streamable HTTP, stateless JSON responses). Read-only unless MCP_ALLOW_WRITE=true.
 // It is off unless MCP_TOKEN is set. proxy.ts skips /api routes, so this handler does its own
 // authentication and must refuse every request that does not carry the bearer token.
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_BODY_CHARS = 256 * 1024;
+// Room for the largest Markdown a write tool accepts (200k characters) once JSON-escaped.
+const MAX_BODY_CHARS = 1024 * 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
 
 const server = createDocsTogServer(createAdminClient);
