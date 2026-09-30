@@ -1,8 +1,20 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+type BadgeTone = "neutral" | "accent" | "info" | "green" | "amber" | "red";
+
 type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
-  tone?: "neutral" | "accent" | "green" | "amber" | "red";
+  tone?: BadgeTone;
+};
+
+// Coloured tones read their hue from --tone (a theme token) so they stay legible
+// in both the dark and the light theme.
+const toneVariables: Record<Exclude<BadgeTone, "neutral">, string> = {
+  accent: "[--tone:var(--accent)]",
+  info: "[--tone:var(--info)]",
+  green: "[--tone:var(--success)]",
+  amber: "[--tone:var(--warning)]",
+  red: "[--tone:var(--danger)]"
 };
 
 export function Badge({ className, tone = "neutral", ...props }: BadgeProps) {
@@ -10,11 +22,12 @@ export function Badge({ className, tone = "neutral", ...props }: BadgeProps) {
     <span
       className={cn(
         "inline-flex min-h-6 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        tone === "neutral" && "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)]",
-        tone === "accent" && "border-emerald-400/30 bg-emerald-400/12 text-emerald-200",
-        tone === "green" && "border-green-400/30 bg-green-400/12 text-green-200",
-        tone === "amber" && "border-amber-400/30 bg-amber-400/12 text-amber-200",
-        tone === "red" && "border-red-400/30 bg-red-400/12 text-red-200",
+        tone === "neutral"
+          ? "border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)]"
+          : cn(
+              "border-[color-mix(in_srgb,var(--tone)_34%,transparent)] bg-[color-mix(in_srgb,var(--tone)_var(--tone-tint),transparent)] text-[var(--tone)]",
+              toneVariables[tone]
+            ),
         className
       )}
       {...props}

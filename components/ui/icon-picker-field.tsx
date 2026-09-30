@@ -125,7 +125,7 @@ export function IconPickerField({
                 className={cn(
                   "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition",
                   category === item
-                    ? "border-[var(--accent)] bg-emerald-400/10 text-emerald-200"
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                     : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-elevated)]"
                 )}
               >
@@ -143,7 +143,7 @@ export function IconPickerField({
                 onClick={() => setValue(option.icon)}
                 className={cn(
                   "flex aspect-square items-center justify-center rounded-lg border text-xl transition hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]",
-                  value === option.icon ? "border-[var(--accent)] bg-emerald-400/10" : "border-[var(--border)]"
+                  value === option.icon ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)]"
                 )}
               >
                 {option.icon}

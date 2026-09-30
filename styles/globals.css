@@ -1,35 +1,70 @@
 @import "tailwindcss";
 
+/*
+ * components/editor/rich-editor.tsx is frozen and still uses emerald-* utilities
+ * for its "active" and "success" states. Alias the steps it uses to the brand
+ * accent so the editor follows the theme (gold) in both dark and light modes.
+ * Do not use emerald-* in new code: reach for var(--accent) instead.
+ */
+@theme inline {
+  --color-emerald-100: var(--accent);
+  --color-emerald-200: var(--accent);
+  --color-emerald-400: var(--accent);
+  --color-emerald-500: var(--accent);
+}
+
+/*
+ * Theme: blue-black surfaces with a single gold accent.
+ * Every colour is a token so the light theme only redefines values.
+ * Contrast checked (WCAG): text >= 13:1, muted >= 5.6:1, accent as text >= 8.3:1
+ * on dark and >= 4.7:1 on light, button label on accent >= 5.3:1.
+ */
 :root {
   color-scheme: dark;
-  --background: #0c0d10;
-  --surface: #14161b;
-  --surface-elevated: #1b1e25;
-  --surface-soft: #20242d;
-  --border: #2b303b;
-  --text: #f4f7fb;
-  --muted: #9ca7b7;
-  --accent: #3dd6b3;
-  --accent-strong: #24b497;
-  --warning: #f3b862;
-  --danger: #f87171;
-  --success: #65d68a;
+  --background: #060a12;
+  --surface: #0b111d;
+  --surface-elevated: #111a2a;
+  --surface-soft: #182338;
+  --border: #212d45;
+  --text: #e8ecf4;
+  --muted: #8f9cb4;
+  --accent: #d4af5f;
+  --accent-strong: #e6c57b;
+  --accent-contrast: #0a0e17;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 34%, transparent);
+  --info: #7fa6f0;
+  --warning: #e8a94d;
+  --danger: #f2716f;
+  --success: #62c98a;
+  --tone-tint: 12%;
+  --glow-gold: rgba(212, 175, 95, 0.07);
+  --glow-blue: rgba(74, 112, 196, 0.11);
+  --code-bg: #050912;
+  --scrollbar-thumb: rgba(143, 156, 180, 0.32);
 }
 
 :root.light {
   color-scheme: light;
-  --background: #f6f7f9;
+  --background: #f3f5f9;
   --surface: #ffffff;
-  --surface-elevated: #f0f3f7;
-  --surface-soft: #e7ebf0;
-  --border: #d8dee8;
-  --text: #12141a;
-  --muted: #667084;
-  --accent: #0f9f83;
-  --accent-strong: #087961;
-  --warning: #b87913;
-  --danger: #cf3d3d;
-  --success: #207a42;
+  --surface-elevated: #eef1f7;
+  --surface-soft: #e2e7f0;
+  --border: #cdd5e4;
+  --text: #0c1322;
+  --muted: #566178;
+  --accent: #8a650f;
+  --accent-strong: #6d4f08;
+  --accent-contrast: #ffffff;
+  --info: #2a54a5;
+  --warning: #7c4d04;
+  --danger: #b32d2d;
+  --success: #19693a;
+  --tone-tint: 8%;
+  --glow-gold: rgba(138, 101, 15, 0.05);
+  --glow-blue: rgba(74, 112, 196, 0.08);
+  --code-bg: #eef1f7;
+  --scrollbar-thumb: rgba(86, 97, 120, 0.35);
 }
 
 * {
@@ -45,8 +80,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(61, 214, 179, 0.12), transparent 28rem),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 16rem),
+    radial-gradient(circle at top left, var(--glow-gold), transparent 30rem),
+    radial-gradient(circle at 88% -12%, var(--glow-blue), transparent 36rem),
     var(--background);
   color: var(--text);
   font-family:
@@ -67,7 +102,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(61, 214, 179, 0.32);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -80,10 +115,21 @@ textarea {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 167, 183, 0.35);
+  background: var(--scrollbar-thumb);
   border: 2px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
+}
+
+/* Applied to <body> by ResizeHandle while a panel is being dragged. */
+body.is-resizing,
+body.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.is-resizing iframe {
+  pointer-events: none;
 }
 
 .prose-editor {
@@ -184,7 +230,7 @@ textarea {
 }
 
 .prose-editor pre {
-  background: #090a0d;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow-x: auto;
@@ -260,7 +306,7 @@ textarea {
 }
 
 .prose-editor th {
-  background: rgba(61, 214, 179, 0.12);
+  background: var(--accent-soft);
   font-weight: 700;
 }
 
@@ -335,7 +381,7 @@ textarea {
 
 .collaboration-caret-label {
   border-radius: 6px;
-  color: #07110f;
+  color: #0a0e17;
   font-size: 0.72rem;
   font-weight: 700;
   left: -2px;

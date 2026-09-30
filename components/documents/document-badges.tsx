@@ -2,9 +2,9 @@ import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/utils";
 import { PRIORITY_LABELS, STATUS_LABELS, type DocumentPriority, type DocumentStatus, type Profile, type Tag } from "@/types";
 
-const statusTones: Record<DocumentStatus, "neutral" | "accent" | "amber" | "green"> = {
+const statusTones: Record<DocumentStatus, "neutral" | "info" | "amber" | "green"> = {
   todo: "neutral",
-  in_progress: "accent",
+  in_progress: "info",
   review: "amber",
   done: "green"
 };
@@ -23,11 +23,11 @@ export function StatusBadge({ status, compact = false }: { status: DocumentStatu
         title={STATUS_LABELS[status]}
         className={`inline-block h-2 w-2 shrink-0 rounded-full ${
           status === "done"
-            ? "bg-green-400"
+            ? "bg-[var(--success)]"
             : status === "in_progress"
-              ? "bg-[var(--accent)]"
+              ? "bg-[var(--info)]"
               : status === "review"
-                ? "bg-amber-400"
+                ? "bg-[var(--warning)]"
                 : "bg-[var(--border)]"
         }`}
       />
