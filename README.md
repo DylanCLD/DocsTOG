@@ -28,9 +28,12 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-server-only
 BOOTSTRAP_ADMIN_EMAILS=you@example.com,teammate@example.com
+MCP_TOKEN=
 ```
 
 `BOOTSTRAP_ADMIN_EMAILS` sert à autoriser le premier admin automatiquement après connexion Google.
+
+`MCP_TOKEN` est facultatif: il active le [serveur MCP](#serveur-mcp-lecture-seule). Sans lui, `/api/mcp` reste désactivé.
 
 ## Configuration Supabase
 
@@ -64,6 +67,42 @@ npm run lint
 npm run build
 ```
 
+## Serveur MCP (lecture seule)
+
+Le projet expose un serveur [MCP](https://modelcontextprotocol.io) sur `/api/mcp`, pour que Claude puisse chercher et lire les pages et documents. Il est **désactivé tant que `MCP_TOKEN` n'est pas défini**.
+
+### Activer
+
+1. Génère un jeton: `openssl rand -hex 32` (32 caractères minimum, sinon le serveur reste désactivé).
+2. Ajoute `MCP_TOKEN` aux variables d'environnement de Vercel (environnement *Production*) et redéploie. `SUPABASE_SERVICE_ROLE_KEY` doit aussi être défini.
+3. Connecte Claude Code:
+
+```bash
+claude mcp add --transport http docstog https://docs-tog.vercel.app/api/mcp --header "Authorization: Bearer <MCP_TOKEN>"
+```
+
+Le transport est Streamable HTTP en JSON, sans session. L'authentification se fait par jeton statique (pas d'OAuth): elle convient aux clients qui permettent d'ajouter un en-tête `Authorization`.
+
+### Outils
+
+| Outil | Rôle |
+| --- | --- |
+| `search` | Cherche dans les titres (par défaut) ou dans le texte des pages et documents, sans tenir compte des accents ni de la casse |
+| `list_pages` | Liste les pages, ou les enfants d'une page |
+| `get_page` | Lit une page: métadonnées, chemin, sous-pages, contenu en Markdown |
+| `list_managers` | Liste les gestionnaires avec leur nombre de documents |
+| `list_documents` | Liste les documents (filtres: gestionnaire, parent, statut, priorité, tag) |
+| `get_document` | Lit un document: métadonnées, chemin, sous-documents, contenu en Markdown |
+| `get_backlinks` | Liste les pages et documents qui pointent vers un élément |
+
+### Sécurité
+
+- Le serveur est **en lecture seule**: il n'émet que des `SELECT`, et aucun outil n'écrit dans la base ni dans le contenu de l'éditeur.
+- Il utilise la clé `service_role`, donc il **contourne les règles RLS**: le jeton donne accès en lecture à toutes les pages et à tous les documents. Traite-le comme un mot de passe. S'il fuite, change `MCP_TOKEN` dans Vercel et redéploie.
+- Le jeton est comparé en temps constant. En cas d'erreur, seuls le nom de l'outil et le message d'erreur sont journalisés: jamais le jeton ni les arguments des requêtes.
+- Les textes renvoyés sont écrits par l'équipe: Claude doit les traiter comme des données, pas comme des instructions.
+- Les réponses sont plafonnées (`max_chars`, 50 000 caractères par défaut) et les images collées en base64 ne sont jamais renvoyées.
+
 ## Routes principales
 
 - `/login`: connexion Google
@@ -75,6 +114,7 @@ npm run build
 - `/media`: médiathèque
 - `/settings`: administration
 - `/access-denied`: email non autorisé
+- `/api/mcp`: serveur MCP en lecture seule (voir plus haut)
 
 ## Rôles
 
