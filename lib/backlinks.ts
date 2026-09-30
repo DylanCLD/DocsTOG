@@ -1,4 +1,4 @@
-import type { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Backlinks ("links to this page") are computed on read from the stored editor
 // content: pages.content / documents.content stay the single source of truth and
@@ -27,7 +27,7 @@ export type BacklinksResult = {
   incomplete: boolean;
 };
 
-type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
+type ServerSupabase = SupabaseClient;
 
 type ManagerJoin = { name: string | null };
 type PageRow = { id: string; title: string; icon: string | null; content: unknown };
