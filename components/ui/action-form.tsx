@@ -23,6 +23,7 @@ type ActionFormProps = Omit<FormHTMLAttributes<HTMLFormElement>, "action" | "onS
   errorMessage?: string;
   resetOnSuccess?: boolean;
   refreshOnSuccess?: boolean;
+  onSuccess?: () => void;
 };
 
 export function ActionForm({
@@ -31,6 +32,7 @@ export function ActionForm({
   errorMessage = "Action impossible.",
   resetOnSuccess = false,
   refreshOnSuccess = true,
+  onSuccess,
   className,
   children,
   ...props
@@ -56,6 +58,7 @@ export function ActionForm({
                 formRef.current?.reset();
               }
               notify(successMessage, "success");
+              onSuccess?.();
               if (refreshOnSuccess) {
                 router.refresh();
               }

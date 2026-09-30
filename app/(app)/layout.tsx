@@ -1,7 +1,9 @@
+import { AppShell } from "@/components/layout/app-shell";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { ToastProvider } from "@/components/ui/toast-provider";
 import { requireProfile } from "@/lib/auth";
+import { getPanelPrefs } from "@/lib/panel-prefs-server";
 import { createClient } from "@/lib/supabase/server";
 import type { WorkspaceSettings } from "@/types";
 
@@ -10,10 +12,11 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
   const supabase = await createClient();
-  const [settingsResult, favPagesResult, favDocsResult] = await Promise.all([
+  const [settingsResult, favPagesResult, favDocsResult, prefs] = await Promise.all([
     supabase.from("workspace_settings").select("*").eq("id", true).maybeSingle(),
     supabase.from("pages").select("id,title,icon").eq("is_favorite", true).order("title"),
-    supabase.from("documents").select("id,title").eq("is_favorite", true).order("title")
+    supabase.from("documents").select("id,title").eq("is_favorite", true).order("title"),
+    getPanelPrefs()
   ]);
 
   const favorites = {
@@ -23,13 +26,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
-      <div className="min-h-dvh lg:grid lg:grid-cols-[18rem_1fr]">
-        <Sidebar profile={profile} settings={(settingsResult.data as WorkspaceSettings | null) ?? null} favorites={favorites} />
-        <div className="min-w-0">
-          <Topbar />
-          <main className="w-full px-4 py-6 lg:px-8">{children}</main>
-        </div>
-      </div>
+      <AppShell
+        initialSidebarWidth={prefs.sidebarWidth}
+        initialSidebarCollapsed={prefs.sidebarCollapsed}
+        sidebar={<Sidebar profile={profile} settings={(settingsResult.data as WorkspaceSettings | null) ?? null} favorites={favorites} />}
+      >
+        <Topbar />
+        <main className="w-full px-4 py-4 lg:px-6 lg:py-5">{children}</main>
+      </AppShell>
     </ToastProvider>
   );
 }

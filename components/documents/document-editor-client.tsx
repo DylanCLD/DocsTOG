@@ -1,14 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { toggleDocumentFavorite, updateDocumentContent, updateDocumentMeta } from "@/lib/actions/managers";
-import { Button } from "@/components/ui/button";
-import { FavoriteButton } from "@/components/ui/favorite-button";
+import { updateDocumentContent } from "@/lib/actions/managers";
+import type { DocumentRecord, InternalLinkTarget, Profile } from "@/types";
 
 const RichEditor = dynamic(() => import("@/components/editor/rich-editor").then((m) => m.RichEditor), { ssr: false });
-import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import type { DocumentRecord, InternalLinkTarget, Profile } from "@/types";
-import { PRIORITY_LABELS, STATUS_LABELS } from "@/types";
 
 export function DocumentEditorClient({
   document,
@@ -22,76 +18,21 @@ export function DocumentEditorClient({
   internalLinkTargets: InternalLinkTarget[];
 }) {
   const readOnly = profile.role === "reader";
-  const tags = document.document_tags?.map((item) => item.tags?.name).filter(Boolean).join(", ") ?? "";
 
   return (
-    <div className="space-y-5">
-      <form action={updateDocumentMeta.bind(null, document.id)} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div>
-            <Label htmlFor="title">Titre</Label>
-            <Input id="title" name="title" defaultValue={document.title} disabled={readOnly} />
-          </div>
-          <div>
-            <Label htmlFor="tags">Tags</Label>
-            <Input id="tags" name="tags" defaultValue={tags} disabled={readOnly} />
-          </div>
-          <div className="lg:col-span-2">
-            <Label htmlFor="short_description">Description courte</Label>
-            <Textarea id="short_description" name="short_description" defaultValue={document.short_description ?? ""} disabled={readOnly} />
-          </div>
-          <div>
-            <Label htmlFor="status">Statut</Label>
-            <Select id="status" name="status" defaultValue={document.status} disabled={readOnly}>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="priority">Priorité</Label>
-            <Select id="priority" name="priority" defaultValue={document.priority} disabled={readOnly}>
-              {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="responsible_id">Responsable</Label>
-            <Select id="responsible_id" name="responsible_id" defaultValue={document.responsible_id ?? ""} disabled={readOnly}>
-              <option value="">Non assigné</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>{user.full_name ?? user.email}</option>
-              ))}
-            </Select>
-          </div>
-          <div className="flex items-end gap-2">
-            <Button type="submit" disabled={readOnly} className="flex-1">
-              Enregistrer les propriétés
-            </Button>
-            <FavoriteButton
-              isFavorite={document.is_favorite ?? false}
-              disabled={readOnly}
-              onToggle={() => toggleDocumentFavorite(document.id, document.is_favorite ?? false, document.manager_id)}
-            />
-          </div>
-        </div>
-      </form>
-
-      <RichEditor
-        value={document.content}
-        readOnly={readOnly}
-        internalLinkTargets={internalLinkTargets}
-        currentTarget={{ type: "document", id: document.id }}
-        enableQuickCheckbox
-        users={users}
-        onSave={(content, options) => updateDocumentContent(document.id, content, options)}
-        collaboration={{
-          id: document.id,
-          table: "documents",
-          profile
-        }}
-      />
-    </div>
+    <RichEditor
+      value={document.content}
+      readOnly={readOnly}
+      internalLinkTargets={internalLinkTargets}
+      currentTarget={{ type: "document", id: document.id }}
+      enableQuickCheckbox
+      users={users}
+      onSave={(content, options) => updateDocumentContent(document.id, content, options)}
+      collaboration={{
+        id: document.id,
+        table: "documents",
+        profile
+      }}
+    />
   );
 }

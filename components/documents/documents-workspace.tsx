@@ -18,9 +18,9 @@ type ViewMode = "cards" | "list";
 type DocumentReorderAction = (managerId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
 type DocumentMoveAction = (managerId: string, documentId: string, parentDocumentId: string | null, orderedIds: string[]) => Promise<void>;
 
-const statusTones: Record<DocumentStatus, "neutral" | "accent" | "amber" | "green"> = {
+const statusTones: Record<DocumentStatus, "neutral" | "info" | "amber" | "green"> = {
   todo: "neutral",
-  in_progress: "accent",
+  in_progress: "info",
   review: "amber",
   done: "green"
 };
@@ -205,7 +205,7 @@ function DocumentCard({ document }: { document: DocumentRecord }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 truncate font-semibold">
-              {document.is_favorite && <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />}
+              {document.is_favorite && <Star className="h-4 w-4 shrink-0 fill-[var(--accent)] text-[var(--accent)]" />}
               {document.title}
             </h3>
             <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted)]">{document.short_description ?? "Sans description."}</p>

@@ -24,11 +24,11 @@ export function FavoriteButton({
       onClick={() => startTransition(() => onToggle())}
       className={cn(
         "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--border)] hover:bg-[var(--surface-elevated)]",
-        isFavorite && "text-amber-400 hover:text-amber-300",
+        isFavorite && "text-[var(--accent)] hover:text-[var(--accent-strong)]",
         pending && "opacity-50"
       )}
     >
-      <Star className={cn("h-4 w-4", isFavorite && "fill-amber-400")} />
+      <Star className={cn("h-4 w-4", isFavorite && "fill-[var(--accent)]")} />
     </button>
   );
 }

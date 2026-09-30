@@ -41,7 +41,7 @@ export function LoginCard({
   return (
     <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl shadow-black/20">
       <div className="mb-8">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--accent)] text-xl font-black text-[#07110f]">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--accent)] text-xl font-black text-[var(--accent-contrast)]">
           W
         </div>
         <h1 className="text-2xl font-semibold">Connexion au site projet</h1>

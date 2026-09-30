@@ -60,6 +60,35 @@ export function flattenHierarchy<T>(nodes: Array<HierarchyNode<T>>) {
   return flattened;
 }
 
+/**
+ * Ancestors of `activeId` ordered from the root down to its direct parent.
+ * Stops on missing parents and on cycles, so broken data cannot loop forever.
+ */
+export function collectAncestors<T extends { id: string }>(
+  items: T[],
+  activeId: string,
+  getParentId: (item: T) => string | null | undefined
+) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const visited = new Set<string>([activeId]);
+  const chain: T[] = [];
+  let current = byId.get(activeId);
+
+  while (current) {
+    const parentId = getParentId(current);
+    const parent = parentId && !visited.has(parentId) ? byId.get(parentId) : undefined;
+    if (!parent) {
+      break;
+    }
+
+    visited.add(parent.id);
+    chain.unshift(parent);
+    current = parent;
+  }
+
+  return chain;
+}
+
 export function collectAncestorIds<T extends { id: string }>(
   items: T[],
   activeId: string,

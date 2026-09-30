@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, CornerDownRight, GripVertical, Search } from "lucide-react";
+import { ChevronRight, GripVertical, Search } from "lucide-react";
+import { useTitleTooltip } from "@/components/navigation/title-tooltip";
+import { TreeGuides, treeRowPaddingLeft } from "@/components/navigation/tree-guides";
 import { buildHierarchy, collectAncestorIds, type HierarchyNode } from "@/lib/hierarchy";
 import { cn } from "@/lib/utils";
 import type { PageRecord } from "@/types";
@@ -115,7 +117,10 @@ export function PageTreeNav({
   }
 
   return (
-    <nav className={cn("space-y-1", compact ? "text-sm" : "rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2")}>
+    <nav
+      aria-label="Arborescence des pages"
+      className={cn(compact ? "text-sm" : "rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2")}
+    >
       {pages.length > 6 && (
         <div className="relative mb-2">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
@@ -123,7 +128,11 @@ export function PageTreeNav({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filtrer..."
-            className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-8 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+            aria-label="Filtrer les pages"
+            className={cn(
+              "w-full rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 pl-8 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)]",
+              compact ? "h-8" : "h-9"
+            )}
           />
         </div>
       )}
@@ -191,21 +200,26 @@ function PageTreeNode({
     setOpenIds(next);
   };
 
+  // The tooltip only appears when the title is truncated; the category is the hint.
+  const { bindLabel, anchorProps, hide: hideTooltip, portal } = useTitleTooltip(node.item.title, node.item.category);
+
   return (
     <div>
       <div
         draggable={canReorder}
         className={cn(
-          "group relative flex items-center gap-1 rounded-md border border-transparent transition-colors",
-          canReorder && "cursor-grab active:cursor-grabbing",
-          isDropScope && "transition-colors"
+          "group/row relative flex items-center rounded-md pr-1 transition-colors",
+          compact ? "min-h-7 gap-0.5" : "gap-1 py-0.5",
+          compact && (isActive ? "bg-[var(--accent-soft)] shadow-[inset_2px_0_0_var(--accent)]" : "hover:bg-[var(--surface-elevated)]"),
+          canReorder && "cursor-grab active:cursor-grabbing"
         )}
-        style={{ paddingLeft: `${node.depth * 0.85}rem` }}
+        style={{ paddingLeft: treeRowPaddingLeft(node.depth, canReorder) }}
         onDragStart={(event) => {
           if (!canReorder) {
             return;
           }
 
+          hideTooltip();
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("text/plain", node.item.id);
           setDragState({ id: node.item.id, parentId });
@@ -224,53 +238,55 @@ function PageTreeNode({
           onDrop(node.item.id, parentId, siblingIds, node.children.map((child) => child.item.id), mode);
         }}
       >
-        {node.depth > 0 && <span className="absolute left-2 top-1/2 h-px w-4 bg-[var(--border)]" aria-hidden />}
+        <TreeGuides depth={node.depth} withGrip={canReorder} />
         {canReorder ? (
           <span
-            role="button"
-            tabIndex={0}
-            title="Deplacer"
-            aria-label="Deplacer"
-            className="flex h-8 w-6 shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition group-hover:bg-[var(--surface-elevated)] group-hover:text-[var(--text)]"
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0.5 top-1/2 -translate-y-1/2 text-[var(--muted)] opacity-0 transition-opacity group-hover/row:opacity-70"
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-3.5 w-3.5" />
           </span>
         ) : null}
 
         {hasChildren ? (
           <button
             type="button"
-            aria-label={isOpen ? "Replier" : "Deplier"}
+            aria-label={isOpen ? "Replier" : "Déplier"}
+            aria-expanded={isOpen}
             onClick={toggle}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-[var(--surface-elevated)] hover:text-[var(--text)]"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
           >
-            <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
+            <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", isOpen && "rotate-90")} />
           </button>
         ) : (
-          <span className="h-7 w-7 shrink-0" />
+          <span className="h-5 w-5 shrink-0" />
         )}
-
-        {node.depth > 0 && <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />}
 
         <Link
           draggable={false}
           href={`/pages/${node.item.id}`}
+          aria-current={isActive ? "page" : undefined}
+          {...anchorProps}
           className={cn(
-            "min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 transition hover:bg-[var(--surface-elevated)]",
-            isActive && "bg-[var(--surface-soft)] text-[var(--text)] ring-1 ring-[var(--accent)]",
-            compact ? "text-sm" : "text-sm"
+            "min-w-0 flex-1 transition",
+            compact
+              ? "rounded-md px-1.5 py-1 text-[13px]"
+              : "rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-2 text-sm hover:bg-[var(--surface-elevated)]",
+            compact && (isActive ? "text-[var(--text)]" : "text-[var(--muted)] group-hover/row:text-[var(--text)]"),
+            !compact && isActive && "bg-[var(--surface-soft)] text-[var(--text)] ring-1 ring-[var(--accent)]"
           )}
         >
-          <span className="flex min-w-0 items-center gap-2">
+          <span className="flex min-w-0 items-center gap-1.5">
             <span className="shrink-0">{node.item.icon}</span>
-            <span className="truncate font-medium">{node.item.title}</span>
+            <span ref={bindLabel} className="truncate font-medium">{node.item.title}</span>
           </span>
           {!compact && <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">{node.item.category}</span>}
         </Link>
+        {portal}
       </div>
 
       {hasChildren && isOpen && (
-        <div className="ml-5 mt-1 space-y-1 border-l border-dashed border-[var(--border)] pl-3">
+        <div role="group">
           {node.children.map((child) => (
             <PageTreeNode
               key={child.item.id}

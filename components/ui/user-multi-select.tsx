@@ -96,7 +96,7 @@ export function UserMultiSelect({
             <span
               className={cn(
                 "flex h-5 w-5 items-center justify-center rounded border",
-                allSelected ? "border-[var(--accent)] bg-[var(--accent)] text-[#07110f]" : "border-[var(--border)]"
+                allSelected ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]" : "border-[var(--border)]"
               )}
             >
               {allSelected && <Check className="h-3.5 w-3.5" />}
@@ -122,7 +122,7 @@ export function UserMultiSelect({
                   <span
                     className={cn(
                       "flex h-5 w-5 items-center justify-center rounded border",
-                      checked ? "border-[var(--accent)] bg-[var(--accent)] text-[#07110f]" : "border-[var(--border)]"
+                      checked ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-contrast)]" : "border-[var(--border)]"
                     )}
                   >
                     {checked && <Check className="h-3.5 w-3.5" />}
